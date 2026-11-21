@@ -16,7 +16,7 @@ import kirkpr_company_registry as registry
 import kirkpr_minimax_core as core
 import convert_KIrKpr_to_minimax as gui_helpers
 
-APP_VERSION = "5.0.02"
+APP_VERSION = "5.0.03"
 APP_TITLE = "KIR/KPR \u2192 Minimax Studio"
 APP_EDITION = "WebView2"
 
@@ -66,6 +66,7 @@ class KirKprService:
         self.config_path = Path(config_path) if config_path else core.config_path(self.base_dir)
         self.config = core.load_config(self.config_path)
         self.dataset: core.KirkprDataset | None = None
+        self.source_dataset: core.KirkprDataset | None = None
         self.companies: list[dict[str, Any]] = []
         self.registry_file: Path | None = None
         self.selected_company: dict[str, Any] | None = None
@@ -274,7 +275,8 @@ class KirKprService:
         source = Path(path).expanduser()
         preferred = preferred_format or str(self.config.get("source_preferred_format") or "all")
         dataset = core.load_dataset(source, preferred_format=preferred)
-        core.apply_saved_accounts(dataset, self.config)
+        self.source_dataset = copy.deepcopy(dataset)
+        core.apply_saved_accounts(dataset, self._profile_config())
         if self.selected_company is None:
             tax = dataset.header.get("TaxPayerID") or dataset.header.get("Davcna") or ""
             match = registry.match_company(self.companies, tax_number=tax, source_path=dataset.source_path)
@@ -804,4 +806,64 @@ class KirKprService:
             return state
         state["working_copy"] = str(saved)
         state["msg"] = f"Delovna kopija je shranjena: {saved}. Izvorna datoteka je nespremenjena."
+        return state
+
+    def get_data_editor(self, row_id: str) -> dict[str, Any]:
+        book, index, row = self._row_by_id(row_id)
+        original_rows = None
+        if self.source_dataset is not None:
+            original_rows = self.source_dataset.kir if book == "IR" else self.source_dataset.kpr
+        original_row = original_rows[index] if original_rows is not None and 0 <= index < len(original_rows) else row
+        labels = gui_helpers.IR_FIELD_LABELS if book == "IR" else gui_helpers.PR_FIELD_LABELS
+        evidence_book = "KIR" if book == "IR" else "KPR"
+        fields = []
+        changed = 0
+        for field_name, label in labels.items():
+            def display(name: str, value: Any) -> str:
+                if gui_helpers.is_money_field(book, name):
+                    return gui_helpers.format_money(value)
+                return "" if value is None else str(value)
+
+            original_value = display(field_name, original_row.get(field_name, ""))
+            working_value = display(field_name, row.get(field_name, ""))
+            is_changed = original_value != working_value
+            if is_changed:
+                changed += 1
+            ddvo = core.ddvo_codes_for_field(book, field_name)
+            fields.append({
+                "name": field_name,
+                "label": label,
+                "evidence": f"{evidence_book} {field_name}",
+                "ddvo": ", ".join(ddvo) if ddvo else "—",
+                "original": original_value,
+                "working": working_value,
+                "changed": is_changed,
+                "money": gui_helpers.is_money_field(book, field_name),
+            })
+        return {
+            "ok": True,
+            "id": f"{book.lower()}:{index}",
+            "book": book,
+            "invoice": str(row.get("P3") or ""),
+            "party": str(row.get("P5") if book == "IR" else row.get("P6") or ""),
+            "changed": changed,
+            "fields": fields,
+        }
+
+    def apply_data_field(self, row_id: str, field_name: str, value: Any) -> dict[str, Any]:
+        book, _index, row = self._row_by_id(row_id)
+        field = str(field_name or "").strip()
+        if not field:
+            raise core.KirkprError("Najprej izberite vrstico s poljem.")
+        normalized = core.update_working_row(book, row, field, value)
+        detail = f"{book} {row.get('P3')}: polje {field}"
+        self._mark_working_dirty(detail)
+        self.config["last_action"] = "data_edit"
+        self.config["last_action_detail"] = detail
+        self._persist_config()
+        editor = self.get_data_editor(row_id)
+        state = self._state()
+        state["editor"] = editor
+        state["normalized"] = _jsonable(normalized)
+        state["msg"] = f"Spremenjeno {field}; izvorna vrednost je ostala nespremenjena."
         return state

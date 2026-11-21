@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>KIR/KPR → Minimax Studio 5.0.02</title>
+  <title>KIR/KPR → Minimax Studio 5.0.03</title>
   <link rel="stylesheet" href="/ui/app.css">
 </head>
 <body>
@@ -28,7 +28,7 @@
   <aside class="sidebar" id="sidebar">
     <div class="brand">
       <div class="logo">K</div>
-      <div class="brandText"><b>KirKpr</b><span id="brandVer">5.0.02</span></div>
+      <div class="brandText"><b>KirKpr</b><span id="brandVer">5.0.03</span></div>
     </div>
     <nav class="nav" id="nav">
       <div class="navLbl">Evidence</div>
@@ -103,6 +103,7 @@
         <button class="btn" type="button" id="applyAccountBtn">Uporabi konto</button>
         <button class="btn ghost" type="button" id="vatOnBtn">DDV se odbija: DA</button>
         <button class="btn ghost" type="button" id="vatOffBtn">DDV se odbija: NE</button>
+        <button class="btn ghost" type="button" id="dataEditorBtn">Uredi podatke</button>
         <button class="btn" type="button" id="saveWorkingBtn">Shrani delovno kopijo</button>
       </div>
       <span class="muted" id="statusLine"></span>
@@ -137,7 +138,7 @@
     </div>
     <div class="page hidden" data-page="about" id="page-about">
       <div style="padding:8px 22px 22px;max-width:720px" id="aboutBox">
-        <p><b>KIR/KPR → Minimax Studio 5.0.02</b> — vmesnik WebView2 po zgledu Trops Studio 5.</p>
+        <p><b>KIR/KPR → Minimax Studio 5.0.03</b> — vmesnik WebView2 po zgledu Trops Studio 5.</p>
         <p>Tk vmesnik 4.0.3 ostane v mapi (KirKpr_V4.0.3.pyw), dokler 5.x ne pokrije vseh zaslonov.</p>
         <p>Izračuni DDV, XML in oddaja v Minimax se v tej različici ne spreminjajo.</p>
       </div>
@@ -145,6 +146,32 @@
   </div>
 </div>
 
+
+<div id="dataModal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modalCard">
+    <div class="modalHead">
+      <div>
+        <h2 id="dataTitle">Urejanje podatkov delovne kopije</h2>
+        <p class="muted" id="dataSub">Izvorna vrednost ostane nespremenjena. Za XML/API se uporabi delovna vrednost.</p>
+      </div>
+      <button class="iconBtn" type="button" id="dataClose" title="Zapri">×</button>
+    </div>
+    <div class="modalBody">
+      <div class="tableWrap"><table class="grid" id="tblData"></table></div>
+      <div class="popRow" style="margin-top:10px">
+        <label class="fld" style="flex:1">Polje
+          <span id="dataFieldLabel" class="muted">Izberite polje</span>
+          <input id="dataValue">
+        </label>
+      </div>
+    </div>
+    <div class="modalFoot">
+      <button class="btn" type="button" id="dataApplyBtn">Uporabi vrednost</button>
+      <button class="btn" type="button" id="dataSaveBtn">Shrani delovno kopijo</button>
+      <button class="btn ghost" type="button" id="dataCancel">Zapri</button>
+    </div>
+  </div>
+</div>
 <div id="editorModal" class="modal hidden" role="dialog" aria-modal="true">
   <div class="modalCard">
     <div class="modalHead">

@@ -1,6 +1,6 @@
-/* KirKpr 5.0.02 — vmesnik WebView2 (klici HTTP API / pywebview Bridge). */
+/* KirKpr 5.0.03 — vmesnik WebView2 (klici HTTP API / pywebview Bridge). */
 (function () {
-  var state = { view: "ir", boot: null, companies: [], selected: {}, editor: null };
+  var state = { view: "ir", boot: null, companies: [], selected: {}, editor: null, dataEditor: null, dataField: "" };
   var titles = {
     ir: "Izdani računi",
     pr: "Prejeti računi",
@@ -72,7 +72,7 @@
       return;
     }
     state.boot = s;
-    $("brandVer").textContent = s.version || "5.0.02";
+    $("brandVer").textContent = s.version || "5.0.03";
     var company = s.company;
     $("companyLabel").textContent = company ? ((company.zst ? company.zst + " · " : "") + (company.name || company.key)) : "Ni izbrano";
     $("periodLabel").textContent = s.period_label || (s.period_from ? (s.period_from + " – " + s.period_to) : "—");
@@ -289,6 +289,78 @@
     reloadView().catch(function (e) { toast(e.message, true); });
   }
 
+
+
+  var DATA_COLS = [
+    { key: "name", label: "Polje" }, { key: "label", label: "Pomen" },
+    { key: "evidence", label: "KIR/KPR" }, { key: "ddvo", label: "DDV-O" },
+    { key: "original", label: "Izvorna vrednost (samo branje)" },
+    { key: "working", label: "Delovna vrednost za Minimax" }
+  ];
+
+  function closeDataEditor() {
+    $("dataModal").classList.add("hidden");
+    state.dataEditor = null;
+    state.dataField = "";
+  }
+
+  function renderDataFields(editor) {
+    state.dataEditor = editor;
+    var rows = (editor.fields || []).map(function (f) {
+      return Object.assign({}, f, { tag: f.changed ? "tax_only" : "" });
+    });
+    renderTable($("tblData"), DATA_COLS, rows, {}, false);
+    $("tblData").querySelectorAll("tbody tr").forEach(function (tr, idx) {
+      var field = (editor.fields || [])[idx];
+      if (!field) return;
+      tr.setAttribute("data-field", field.name);
+      if (state.dataField === field.name) tr.classList.add("selected");
+      tr.addEventListener("click", function () { selectDataField(field.name); });
+    });
+    if (state.dataField) selectDataField(state.dataField);
+  }
+
+  function selectDataField(name) {
+    if (!state.dataEditor) return;
+    var field = (state.dataEditor.fields || []).find(function (f) { return f.name === name; });
+    if (!field) return;
+    state.dataField = name;
+    $("dataFieldLabel").textContent = field.name + " — " + field.label;
+    $("dataValue").value = field.working || "";
+    $("tblData").querySelectorAll("tbody tr").forEach(function (tr) {
+      tr.classList.toggle("selected", tr.getAttribute("data-field") === name);
+    });
+    $("dataValue").focus();
+    $("dataValue").select();
+  }
+
+  function openDataEditor() {
+    var ids = selectedIds();
+    if (ids.length !== 1) { toast("Za urejanje podatkov izberite natanko en račun.", true); return; }
+    api("/api/data-editor?id=" + encodeURIComponent(ids[0])).then(function (data) {
+      if (data.ok === false) throw new Error(data.msg || data.error || "Urejevalnika ni mogoče odpreti.");
+      $("dataTitle").textContent = "Delovna kopija " + data.book + " — " + (data.invoice || "brez številke");
+      $("dataSub").textContent = (data.party || "") + " · Izvorna vrednost ostane nespremenjena. KIR/KPR pokaže mesto v evidenci, DDV-O pa neposredno polje obrazca; za XML/API se uporabi delovna vrednost.";
+      state.dataField = (data.fields && data.fields[0] && data.fields[0].name) || "";
+      renderDataFields(data);
+      $("dataModal").classList.remove("hidden");
+    }).catch(function (e) { toast(e.message, true); });
+  }
+
+  function applyDataField() {
+    if (!state.dataEditor || !state.dataField) { toast("Najprej izberite vrstico s poljem.", true); return Promise.resolve(); }
+    return post("/api/data-editor/apply", {
+      id: state.dataEditor.id,
+      field: state.dataField,
+      value: $("dataValue").value
+    }).then(function (s) {
+      if (s.ok === false) throw new Error(s.msg || s.error);
+      applyState(s);
+      if (s.editor) renderDataFields(s.editor);
+      reloadView();
+    }).catch(function (e) { toast(e.message, true); });
+  }
+
   function closeEditor() {
     $("editorModal").classList.add("hidden");
     state.editor = null;
@@ -493,10 +565,11 @@
     if (ev.target === $("editorModal")) closeEditor();
   });
   document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape" && !$("dataModal").classList.contains("hidden")) { closeDataEditor(); return; }
     if (ev.key === "Escape" && !$("editorModal").classList.contains("hidden")) closeEditor();
     if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "a" && (state.view === "ir" || state.view === "pr")) {
       var table = state.view === "ir" ? $("tblIr") : $("tblPr");
-      if (!table || $("editorModal") && !$("editorModal").classList.contains("hidden")) return;
+      if (!table || ($("editorModal") && !$("editorModal").classList.contains("hidden")) || ($("dataModal") && !$("dataModal").classList.contains("hidden"))) return;
       ev.preventDefault();
       table.querySelectorAll("tbody tr[data-id]").forEach(function (tr) {
         var id = tr.getAttribute("data-id");
@@ -532,6 +605,30 @@
     if (!ev.target.closest("#periodBtn") && !ev.target.closest("#periodPop") && !ev.target.closest("#periodPrev") && !ev.target.closest("#periodNext")) {
       $("periodPop").classList.add("hidden");
     }
+  });
+
+
+
+  $("dataEditorBtn").addEventListener("click", openDataEditor);
+  $("dataClose").addEventListener("click", closeDataEditor);
+  $("dataCancel").addEventListener("click", closeDataEditor);
+  $("dataApplyBtn").addEventListener("click", function () { applyDataField(); });
+  $("dataSaveBtn").addEventListener("click", function () {
+    var current = state.dataEditor && state.dataField && (state.dataEditor.fields || []).find(function (f) { return f.name === state.dataField; });
+    var pending = current && $("dataValue").value !== (current.working || "");
+    var proceed = pending ? applyDataField() : Promise.resolve();
+    proceed.then(function () {
+      return act("save_working_copy").then(function (s) {
+        if (s && s.ok === false) throw new Error(s.msg || s.error);
+        if (s) applyState(s);
+      });
+    }).catch(function (e) { toast(e.message, true); });
+  });
+  $("dataValue").addEventListener("keydown", function (ev) {
+    if (ev.key === "Enter") { ev.preventDefault(); applyDataField(); }
+  });
+  $("dataModal").addEventListener("click", function (ev) {
+    if (ev.target === $("dataModal")) closeDataEditor();
   });
 
   boot().catch(function (e) { toast(e.message || "Zagon ni uspel.", true); });

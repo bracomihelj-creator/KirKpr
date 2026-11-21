@@ -226,6 +226,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/accounts":
                 self._json_resp(200, s.account_choices((q.get("q") or [""])[0]))
                 return
+            if path == "/api/data-editor":
+                self._json_resp(200, s.get_data_editor((q.get("id") or [""])[0]))
+                return
             if path == "/api/paths":
                 self._json_resp(200, s.path_settings())
                 return
@@ -285,6 +288,16 @@ class Handler(BaseHTTPRequestHandler):
                 self._json_resp(
                     200,
                     s.compute_vat_base(str(body.get("field") or ""), body.get("value")),
+                )
+                return
+            if path == "/api/data-editor/apply":
+                self._json_resp(
+                    200,
+                    s.apply_data_field(
+                        str(body.get("id") or ""),
+                        str(body.get("field") or ""),
+                        body.get("value"),
+                    ),
                 )
                 return
             self._error(404, f"Neznan POST: {path}")

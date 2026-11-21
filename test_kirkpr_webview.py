@@ -63,11 +63,11 @@ class WebviewServiceTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def test_version_is_5_0_02(self) -> None:
-        self.assertEqual("5.0.02", APP_VERSION)
+    def test_version_is_5_0_03(self) -> None:
+        self.assertEqual("5.0.03", APP_VERSION)
         boot = self.svc.boot()
         self.assertTrue(boot["ok"])
-        self.assertEqual("5.0.02", boot["version"])
+        self.assertEqual("5.0.03", boot["version"])
         self.assertFalse(boot["has_data"])
 
     def test_load_source_lists_ir_pr_and_ddvo(self) -> None:
@@ -168,6 +168,30 @@ class WebviewServiceTests(unittest.TestCase):
         if project_before is not None:
             self.assertEqual(project_before, project_cfg.read_bytes())
 
+
+    def test_data_editor_changes_working_copy_only(self) -> None:
+        project_cfg = Path(r"D:\PISARNA\Python\KirKpr\convert_KIrKpr_to_minimax_config.json")
+        project_before = project_cfg.read_bytes() if project_cfg.is_file() else None
+        self.svc.load_source(str(self.sample))
+        original_p7 = self.svc.source_dataset.kir[0]["P7"]
+        editor = self.svc.get_data_editor("ir:0")
+        self.assertTrue(editor["ok"])
+        self.assertEqual("IR-1", editor["invoice"])
+        p7 = next(f for f in editor["fields"] if f["name"] == "P7")
+        self.assertEqual(p7["original"], p7["working"])
+        self.assertFalse(p7["changed"])
+        result = self.svc.apply_data_field("ir:0", "P7", "150,00")
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["working_dirty"])
+        updated = next(f for f in result["editor"]["fields"] if f["name"] == "P7")
+        self.assertTrue(updated["changed"])
+        self.assertEqual("150,00", updated["working"])
+        self.assertEqual("100,00", updated["original"])
+        self.assertEqual(original_p7, self.svc.source_dataset.kir[0]["P7"])
+        self.assertNotEqual(original_p7, self.svc.dataset.kir[0]["P7"])
+        if project_before is not None:
+            self.assertEqual(project_before, project_cfg.read_bytes())
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -231,7 +255,7 @@ class HostHttpTests(unittest.TestCase):
     def test_boot_and_load_source_via_http(self) -> None:
         code, body = self._open("/api/boot")
         self.assertEqual(200, code)
-        self.assertEqual("5.0.02", body["version"])
+        self.assertEqual("5.0.03", body["version"])
         code, body = self._open("/api/action", {"name": "load_source", "path": str(self.sample), "sync": True})
         self.assertEqual(200, code)
         self.assertTrue(body.get("has_data"))
@@ -258,4 +282,17 @@ class HostHttpTests(unittest.TestCase):
         self.assertTrue(applied.get("ok"))
         code, ir = self._open("/api/ir")
         self.assertEqual("7620", ir["rows"][0]["account"])
+
+    def test_data_editor_via_http(self) -> None:
+        code, body = self._open("/api/action", {"name": "load_source", "path": str(self.sample), "sync": True})
+        self.assertEqual(200, code)
+        code, editor = self._open("/api/data-editor?id=pr:0")
+        self.assertEqual(200, code)
+        self.assertEqual("PR-1", editor["invoice"])
+        code, applied = self._open("/api/data-editor/apply", {"id": "pr:0", "field": "P8", "value": "210,00"})
+        self.assertEqual(200, code)
+        self.assertTrue(applied.get("ok"))
+        p8 = next(f for f in applied["editor"]["fields"] if f["name"] == "P8")
+        self.assertEqual("210,00", p8["working"])
+        self.assertTrue(p8["changed"])
 
