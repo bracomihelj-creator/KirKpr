@@ -1,7 +1,6 @@
-# KIR/KPR → Minimax Studio — Cursor izdaja (v2.48-cursor)
+# KIR/KPR → Minimax Studio — Cursor izdaja (v4.0.2)
 
-Ločena kopija programa iz `D:\PISARNA\Python\KirKpr_convert`.
-**Originalna mapa ni spremenjena.**
+Program je v mapi `D:\PISARNA\Python\KirKpr` (prej KirKpr_convert_cursor).
 
 ## Zagon
 
@@ -50,4 +49,4 @@ Lokalna datoteka v tej mapi:
 
 `convert_KIrKpr_to_minimax_config.json`
 
-Gesla in `client_secret` se še vedno berejo iz zunanje datoteke Davčne blagajne — tukaj se ne kopirajo.
+Gesla in `client_secret` se še vedno berejo iz zunanje datoteke `D:\\PISARNA\\Python\\DavčnaBlagajna_5.1\\blagajna_minimax_settings.json` — tukaj se ne kopirajo.

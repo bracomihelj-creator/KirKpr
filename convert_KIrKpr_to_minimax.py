@@ -11769,7 +11769,7 @@ class ConverterApp:
         messagebox.showinfo(
             "Kaj je novega (Cursor)",
             f"{APP_DISPLAY_TITLE}\n\n"
-            "• Ločena mapa KirKpr_convert_cursor — original ostane nespremenjen\n"
+            "• Samostojni program v mapi D:\\PISARNA\\Python\\KirKpr\n"
             "• Strukturiran dnevnik KIRKPR_studio.log\n"
             "• Meni: Nastavitve poti (EvidencaFirm, TROPS, Minimax settings)\n"
             "• Gumb »Ponovi NAPAKA« za ponovno oddajo neuspešnih vrstic\n"

@@ -1347,7 +1347,7 @@ DODANO V 2.15
 
 AKTIVNA MAPA
 ------------
-D:\PISARNA\Python\KirKpr_convert_cursor
+D:\PISARNA\Python\KirKpr
 
 Program nima trdo kodiranih poti. Jedro, XSD-shemo in nastavitveno datoteko
 vedno poišče v isti mapi, v kateri je convert_KIrKpr_to_minimax.py.
@@ -1499,7 +1499,7 @@ NEPOSREDNA ODDAJA V MINIMAX API
 -------------------------------
 1. V levem drevesu izberite »Minimax -> API povezava in oddaja«.
 2. Program sam uporabi obstoječo datoteko nastavitev Davčne blagajne:
-       D:\PISARNA\Python\DavčnaBlagajna\blagajna_minimax_settings.json
+       D:\PISARNA\Python\DavčnaBlagajna_5.1\blagajna_minimax_settings.json
    Gesla in client secret se ne kopirajo v nastavitve tega pretvornika.
 3. Organizacije ni treba izbirati v API-zavihku. Ciljni Org_ID vedno določa
    podjetje, izbrano v levem seznamu. Kliknite »Poveži z izbranim podjetjem«.
