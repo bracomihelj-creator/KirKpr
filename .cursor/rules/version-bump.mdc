@@ -1,0 +1,18 @@
+---
+description: Ob vsaki spremembi kode zvišaj APP_VERSION (in Chrome dodatek, če se spremeni).
+alwaysApply: true
+---
+
+# Verzioniranje KIR/KPR → Minimax Studio (Cursor)
+
+Ob **vsaki** uporabniški spremembi kode v tej mapi:
+
+1. Zvišaj `APP_VERSION` v `convert_KIrKpr_to_minimax.py` (npr. `2.23-cursor` → `2.24-cursor`).
+2. Posodobi `NAVODILA_convert_KIrKpr_to_minimax.txt`: vrstica »Različica programa« + kratek blok `DODANO V X.Y-cursor`.
+3. Če spremeniš Chrome razširitev (`Chrome_add/AktivniZavihek_WebApp` / `Chrome_add/Minimax_Odpiranje_Podjetij`):
+ - zvišaj `manifest.json` → `version` in `VERSION.txt`,
+ - posodobi `CHROME_EXTENSION_VERSION` v `convert_KIrKpr_to_minimax.py`,
+ - sinhroniziraj datoteke v obe mapi razširitve.
+4. `version_history` v configu se zabeleži **samodejno ob zagonu** programa — ne urejaj ročno razen če je nujno.
+
+Ne združuj več dni dela v eno verzijo: ena smiselna sprememba / ena zahteva = nova verzija.

@@ -1,0 +1,4 @@
+{
+  "konto62_v_dobro": "Na eDavkih imate v dobro na kontu 62:  {znesek} EUR. \nTa znesek smo upoštevali pri plačilnem nalogu.",
+  "konto62_neplacano": "Na eDavkih je na kontu 62 še neplačano (ni pokrito):  {znesek} EUR. \nTa znesek smo prišteli k plačilnemu nalogu."
+}

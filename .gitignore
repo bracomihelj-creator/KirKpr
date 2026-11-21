@@ -1,0 +1,12 @@
+# KirKpr — lokalni podatki in artefakti (ne v git)
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.pytest_cache/
+*.bak
+*.log
+kirkpr_sessions.sqlite3
+kirkpr_sessions.sqlite3-*
+upn_qr_cache/
+convert_KIrKpr_to_minimax_config.json
+_roundtrip_out.html

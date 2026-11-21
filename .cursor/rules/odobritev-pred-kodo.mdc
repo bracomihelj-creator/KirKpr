@@ -1,0 +1,36 @@
+---
+description: Pred vsako spremembo kode: analiza, poročilo, Ask/potrditev. Samo dodajanje; brez tihega prepisovanja.
+alwaysApply: true
+---
+
+# Odobritev pred kodo (Ask → potrdi → šele potem)
+
+## Obvezni vrstni red
+
+1. **Analiziraj** obstoječo kodo (beri / grepaj) — brez urejanja.
+2. **Poročilo** v klepetu (in po potrebi `.md` datoteka): kaj obstaja, kaj manjka, predlog **samo dodatkov**.
+3. **Ask / Question UI** (ali jasna vprašanja z možnostmi) — počakaj na **eksplicitno potrditev**.
+4. Šele po potrditvi: implementacija, verzija, preverjanje.
+
+## Prepovedano brez odobritve
+
+- Prepisati / zamenjati delujočo datoteko (npr. cel `float_panel.js`).
+- Refaktorirati »obenem« z novo funkcijo.
+- Brisati ali ožiti obstoječe gumbe / tokove.
+- Začeti `Write` / `StrReplace` na produkcijski kodi pred »da / potrjujem«.
+
+## Dovoljeno pred odobritvijo
+
+- Branje, grep, poročila, predlogi, `.cursor/rules/*.mdc`, osnutki v ločenih `*_POROCILO.md`.
+- Vprašanja (Ask) za izbiro pristopa.
+
+## Funkcionalnost samo dodajamo
+
+- Privzeto: **nova** gumba, **nova** sporočila/akcije, **dodatni** handlerji.
+- Obstoječe QuickMB/Quant PR, −/+, panel: **ne spreminjaj**, razen če uporabnik izrecno odobri popravilo/razširitev.
+- Če −/+ že obstaja: v poročilu povej stanje; ne prepisuj panela »na Place vzorec«, dokler ni potrjeno.
+
+## Po potrditvi
+
+- Ena zahteva = ena verzija (manifest / VERSION / NAVODILA razširitve).
+- Kratko sporoči, kaj je dodano; ne razlagaj modela.

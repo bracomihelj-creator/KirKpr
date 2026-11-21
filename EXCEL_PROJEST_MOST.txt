@@ -1,0 +1,22 @@
+# Most KIR/KPR Studio ↔ ProJest
+
+## Ločitev nalog
+| Program | Vloga |
+|---------|--------|
+| **ProJest Studio** | Vasco uvoz (IF*/kp*), konte, stranke (Minimax API + AJPES), XML→KirKpr |
+| **KIR/KPR Studio** | FURS ZIP/JSON, Knjige, DDV-O, Minimax API (računi) — **brez** Vasco |
+
+## Vasco (samo ProJest)
+Gumb **Uvozi Vasco** / Ctrl+O: mapa ali datoteke IF* (IR) + kp* (PR).
+IR skupine: listina 3… = Darila, 2… = Fitnes.
+PR obdobje: Datum prejema listine.
+
+## Stranke (ProJest)
+1. Minimax API → SQLite  
+2. Manjkajoče → AJPES  
+
+## XML za KirKpr
+`D:\Trops\{zst}\MiniMax\KirKpr_IR_*.XML` + `KirKpr_PR_*.XML`  
+IR prihodek privzeto **7620**.
+
+ProJest: `D:\PISARNA\Python\Projest` (v0.3.1+)

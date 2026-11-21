@@ -1,0 +1,1705 @@
+KIR/KPR -> MINIMAX STUDIO (CURSOR)
+=================================
+
+Različica programa: 3.0.191. Zahtevana različica Chrome dodatka: 1.4.19.
+To je ločena Cursor izdaja v mapi KirKpr_convert_cursor.
+Originalna mapa KirKpr_convert ostane nespremenjena.
+
+Program ob zagonu sam zabeleži uporabljeno različico v
+version_history konfiguracije, zato se zgodovina nadgradenj vodi samodejno.
+Ob vsaki spremembi kode se APP_VERSION zviša (pravilo .cursor/rules/version-bump.mdc).
+
+RAZLIČICE
+---------
+- KIR/KPR → Minimax Studio v3.0.191 je Cursor izdaja v tej mapi.
+- Produkcijski original ostaja v D:\PISARNA\Python\KirKpr_convert (v2.19).
+
+DODANO V 3.0.191
+----------------
+- Serija PR: NI nove prijave / novega CDP profila. Če :9222 teče → CDP na
+  obstoječem Chromu; sicer Chrome razširitev v že odprtem Minimax zavihku
+  (kirkpr_* URL, new=0). Dialog »odpri CDP profil / Playwright« odstranjen.
+
+DODANO V 3.0.190
+----------------
+- UI API: namig CDP/serija in gumb »Serija: odhodek + Potrdi (CDP)« nad spodnjo
+  vrstico (ne odrezano na dnu). ToolTip rumeno + ovijanje, pri dnu zaslona NAVZGOR.
+
+DODANO V 3.0.189
+----------------
+- Serija PR: najprej CDP na že odprtem Minimax Chromu (zazna firmo, npr. KLUG).
+  Če ni :9222 → ponudi odpiranje Chrome CDP (ločeni profil) ali Playwright.
+  Gumb »Serija: odhodek + Potrdi (CDP/PW)«. Konto še vedno iz listine.
+
+DODANO V 3.0.188
+----------------
+- Serija PR-osnutkov (Playwright): gumb »Serija: odhodek + Potrdi (PW)«.
+  Ista firma, zaporedno; konto in osnove DDV iz vsake KPR listine
+  (__konto__, base 22/9,5/5) — ne skupni 4190. A/Q: Da=Potrdi, Ne=samo
+  odhodek. Skill: kirkpr-pr-batch-odhodek.
+
+DODANO V 3.0.187
+----------------
+- Minimax API: če partnerja (npr. SI64453073) ni v šifrantu strank,
+  ga pred oddajo/predpreverjanjem samodejno doda z addbytaxnumber
+  (SI + 8-mestna davčna). Nato nadaljuje oddajo.
+
+DODANO V 3.0.186
+----------------
+- PR/KPR P7DS: pred oddajo kritična napaka, če ni pravega ID za DDV
+  (predpona + davčna). Code/listina nista davčna. Tretja država brez ID
+  → predlog CC*** (npr. US***). Ne skrij z tihim vnosom.
+
+DODANO V 3.0.185
+----------------
+- E-pošta: gumb TEST (kot Oddaje) — pošlje SAMO na info@quickmb.com z zadevo
+  [TEST], brez KP/SKP; kanal SMTP ali Outlook; potrdilo »✓ TEST POSLAN«.
+
+DODANO V 3.0.184
+----------------
+- E-pošta SMTP: pošlje TOČNO belo polje (ne znova iz predloge — druga oblika);
+  CSS ne povozi barv/fontov na <p>; znesek za plačilo 18 pt rdeče (kot Oddaje).
+
+DODANO V 3.0.183
+----------------
+- E-pošta: polji KP/CC (privzeto info@quickmb.com) in SKP/BCC;
+  SMTP + Outlook; po pošiljanju vedno okno »✓ E-pošta POSLANA« z Za/KP/SKP/časom
+  (ali »✗ NI poslana«).
+
+DODANO V 3.0.182
+----------------
+- E-pošta predogled: [QR koda za plačilo] → dejanska UPN QR slika v belem telesu;
+  ob pošiljanju še vedno cid vdelava (SMTP/Outlook).
+
+DODANO V 3.0.181
+----------------
+- E-pošta: kritični bug — _on_channel_changed sredi __init__ je podrl gradnjo
+  (AttributeError na var_preview_subj) → belo HTML telo + Oblikovanje se nista
+  naredila (črna praznina). Popravljeno: kanal šele po zgradbi UI; varno _mark_dirty.
+
+DODANO V 3.0.180
+----------------
+- E-pošta: popravek layouta — belo HTML telo je spet glavno (weight na
+  vrstici urejevalnika, ne na Oblikovanje). Oblikovanje/Outlook panela
+  privzeto zložena, da se vidi telo + WYSIWYG.
+
+DODANO V 3.0.179
+----------------
+- E-pošta: ob odprtju s podatki firme takoj Predogled (ne več {obdobje} v zadevi);
+  SMTP → gumb »Pošlji SMTP« + namig; Outlook panel se skrči.
+
+DODANO V 3.0.178
+----------------
+- FORCE EXIT: ob zagonu se kill okno NE odpre več (pomotoma ugasnil program).
+  Gumb/meni zahtevata potrditev; ločeno kill okno: Datoteka → Odpri kill okno.
+  Ctrl+Shift+F12 še vedno takoj ubije (za zmrzovanje).
+
+DODANO V 3.0.177
+----------------
+- FORCE EXIT / kill: gumb v glavi + statusni vrstici + e-pošti;
+  Datoteka → FORCE EXIT; Ctrl+Shift+F12; ločeno okno (drug proces)
+  desno spodaj — deluje tudi ko glavni UI visi (taskkill).
+
+DODANO V 3.0.176
+----------------
+- Popravek zmrzovanja e-pošte: ob odprtju urejevalnika se Outlook COM
+  ne kliče več (prej Dispatch ob Od/hint → UI visi). Osveži = ročno.
+  SMTP pošiljanje v ozadju z oknom »Pošiljam…«.
+
+DODANO V 3.0.175
+----------------
+- E-pošta DDV: kanal SMTP (Gmail App Password, isto geslo kot Oddaje/Minimax_forward)
+  poleg Outlooka; privzeto SMTP takoj (brez Outbox).
+- Odloženo pošiljanje: privzeto IZKLOPLJENO + opozorilo (prej je sporočilo
+  ostalo v Outlook Outbox do jutri 8:00 — zato »ni poslano«).
+- UPN QR: trajna PNG v upn_qr_cache (ne samo temp); status ob priponkah;
+  vdelava cid ob SMTP/Outlook. Marker [QR koda…] v urejevalniku = placeholder,
+  slika se vstavi šele ob pošiljanju.
+
+DODANO V 3.0.174
+----------------
+- DDV presežek (52) + e-pošta kot DDV-O Oddaje 1.0.64/65:
+  {presezek}/{presezek_obvestilo}/{placilo_block}/{priloga_obvestilo};
+  kljukica vračilo (04) → f04 PDF; e-pošta s PDF brez virmana/QR.
+
+DODANO V 3.0.173
+----------------
+- DDV-O Oddaje 1.0.54: e-pošta paneli −/+ vse; višja toolbar (kombo vidno).
+
+DODANO V 3.0.172
+----------------
+- DDV-O Oddaje 1.0.53: shranjevanje kot KirKpr — »DDV O 2026 Q2.pdf«.
+
+DODANO V 3.0.171
+----------------
+- DDV-O Oddaje 1.0.52: konto 62 privzeto izklopljen + izločitev Obračun DDV-o;
+  popravljeni datumi v PDF (ISO); gumba Dodaj konto 62! / Brez 62.
+
+DODANO V 3.0.170
+----------------
+- DDV-O Oddaje 1.0.51: Ustvari DDV-O PDF kot KirKpr; Outlook/SMTP footer
+  (ne več skrite »puščice« pod predogledom).
+
+DODANO V 3.0.169
+----------------
+- DDV-O Oddaje 1.0.50: znesek virmana = Minimax Obveznost (Obračun DDV);
+  samodejni SEPA virman + QR; DDV-O PDF iz Trops/Downloads.
+
+DODANO V 3.0.168
+----------------
+- DDV-O Oddaje 1.0.49: paneli −/+ vse; e-pošta kot KirKpr (znesek, UPN QR,
+  priponke samo aktualni DDV-O + virman za obdobje).
+
+DODANO V 3.0.167
+----------------
+- Bug: Tromesečni je bil napačno bran kot Mesečni (substring »mesečn«).
+- SOAP poročilo: jasnejše napake / prazni rezultati. eDavki 1.2.79 · DDVO 1.0.48.
+
+DODANO V 3.0.166
+----------------
+- Listview: Tromesečni (npr. QUICK) ostanejo Q vrstice tudi z REK-O
+  (ne januar…junij). DDV-O Oddaje 1.0.47.
+
+DODANO V 3.0.165
+----------------
+- eDavki popup: gumb »Zaženi strežnik :5088« (protokol edavki-firme://;
+  enkrat Namesti_zagon_iz_Chrome.bat). eDavki 1.2.78.
+
+DODANO V 3.0.164
+----------------
+- SOAP pregled oddaj: gumb v eDavki popup + DDV-O Oddaje (izbrana / vse),
+  okno poročila. Test: QUICK 87859254. eDavki 1.2.77 · DDVO 1.0.46.
+
+DODANO V 3.0.163
+----------------
+- SOAP: zajem vseh dokumentov (DisplayAll + prejeti, opcijsko XML/priloge)
+  prek http://127.0.0.1:5088/soap-docs. eDavki 1.2.76.
+
+DODANO V 3.0.162
+----------------
+- REK-O 1001: najprej SOAP prek Halcom (lokalni :5088 /reko1001-scan),
+  če SOAP ni na voljo → skriti zavihek. eDavki 1.2.75.
+
+DODANO V 3.0.161
+----------------
+- REK-O 1001 poizvedba: namenski skriti eDavki zavihek (ne jemlje tvojega),
+  ob koncu ga zapre. eDavki 1.2.74.
+
+DODANO V 3.0.160
+----------------
+- Listview REK-O: opis v eni vrstici (npr. »1001 · Plača · 01.2026«).
+  DDV-O Oddaje 1.0.45.
+
+DODANO V 3.0.159
+----------------
+- ListPosted: pri »Vsi obrazci« so vsi datumski textboxi prazni
+  (Obdobje vloge samo pri konkretni vrsti). eDavki 1.2.73.
+
+DODANO V 3.0.158
+----------------
+- ListPosted »Ni zapisov« zaradi praznih datumov: preverjanje + retry;
+  ne šteje več kot »ni oddano REK«. eDavki 1.2.72.
+
+DODANO V 3.0.157
+----------------
+- REK-O 1001: en delovni eDavki zavihek (ne kopiči Deputy+ListPosted);
+  zapre samo nove zavihke, ki jih scan odpre. eDavki 1.2.71.
+
+DODANO V 3.0.156
+----------------
+- REK-O 1001 poizvedba hitreje: krajši preklop zavezanca, krajše čakanje
+  na ListPosted, brez praznega retryja, cache ob ponovnem zagonu. eDavki 1.2.70.
+
+DODANO V 3.0.155
+----------------
+- Minimax Napake: obnovljene manjkajoče funkcije v service workerju
+  (dedicatedTabs, odpiranje podjetja, PR avtomatika). Chrome 1.4.19.
+
+DODANO V 3.0.154
+----------------
+- Listview vsa ✕: uskladitev hidd Date/Period (stari REK filter je zadel DDV),
+  branje SAMO z ListPosted (ne eKartica), retry ob praznem gridu.
+  eDavki 1.2.69 / DDV-O 1.0.44.
+
+DODANO V 3.0.151
+----------------
+- Popravek listview »vsa ✕ / prazen REK«: REK filter je pustil Obdobje vloge in
+  zmedel DDV; prazen cache + zaporedno brez forceRefresh. eDavki 1.2.66 / DDV-O 1.0.41.
+
+DODANO V 3.0.150
+----------------
+- Popravek Napake v Minimax odpiranje podjetij: pokvarjen jobPackSlots (odprt {)
+  je podrl service worker. Chrome 1.4.18.
+
+DODANO V 3.0.149
+----------------
+- REK-O 1001 poizvedba v lastnem panelu (ne meša z Naloži tabelo / Evidence).
+  eDavki 1.2.65 / DDV-O Oddaje 1.0.40.
+
+DODANO V 3.0.148
+----------------
+- Nova poizvedba: za vse zavezance — kdo ni oddal REK-O 1001 (Plača) za zadnji
+  zapadli mesec (ostalo je v semaforju). Gumb v eDavki pregledu in DDV-O Oddaje.
+  eDavki 1.2.64 / DDV-O Oddaje 1.0.39.
+
+DODANO V 3.0.147
+----------------
+- REK-O iskanje na eDavkih: Obdobje vloge do = današnji datum (ne 31.12.). eDavki 1.2.63.
+
+DODANO V 3.0.146
+----------------
+- REK-O: eDavki »Obdobje vloge« se ne omejuje na konec zapadlega meseca (npr. 30.06.)
+  — pri iskanju 01.01.–danes, sicer junijska plača oddana julija izgine.
+  Mesec še vedno iz Podrobnosti. eDavki 1.2.62.
+
+DODANO V 3.0.145
+----------------
+- REK-O: mesec plače iz Podrobnosti (npr. 1001, 06.2026 = junij), ne iz stolpca
+  Obdobje (20260715 = datum obračuna). Junijska plača oddana 14. 7. se pravilno
+  pokaže pri juniju. eDavki 1.2.61 / DDV-O Oddaje 1.0.38.
+
+DODANO V 3.0.144
+----------------
+- DDV-O Oddaje 1.0.37: odstranjen stolpec Napake (status se že vidi pri Kir/Kpr).
+
+DODANO V 3.0.143
+----------------
+- Skupaj / analitika = Saldo na današnji dan (−1.261,61), ne letni Skupaj (−201,47 z NUSZ);
+  konti z 0,00 na dan (npr. 97) niso v analitiki. Chrome 1.4.17 / eDavki 1.2.60 / DDV-O 1.0.36.
+
+DODANO V 3.0.142
+----------------
+- eKartica saldo vedno z URL …/EKarticaV2.aspx?form=eKartica (skupni podatki po kontih);
+  npr. …/[40817]/…/EKarticaV2.aspx?form=eKartica. Chrome 1.4.16 / eDavki 1.2.59 / DDV-O 1.0.35.
+
+DODANO V 3.0.141
+----------------
+- eKartica footer »Skupaj« nima stolpca Naziv (diagnostika PROJEST): pravilno bere
+  Skupaj saldo = −201,47 (ne −1.261,61 iz Saldo na datum). Chrome 1.4.15 / eDavki 1.2.58.
+
+DODANO V 3.0.140
+----------------
+- eKartica: branje vrstice »Skupaj« (skupni saldo vseh kontov) + analitika odprtih kontov;
+  − = preplačilo, + = dolžno plačilo. Nov stolpec »Skupaj« v DDV-O Oddaje 1.0.34
+  (ob Konto 62, samo zadnji mesec). Ob potrditvi virmana: obvestilo, če je Skupaj ≠ 0
+  (kartica ima stanja) — analitika; virman še vedno = 51 + konto 62.
+- Chrome dodatek 1.4.14 + eDavki pregled 1.2.57 (sinhronizirano branje eKartice).
+
+DODANO V 3.0.139
+----------------
+- DDV-O Oddaje 1.0.33 / eDavki 1.2.56: konto 62 samo v zadnjem mesecu (brez »preberi«);
+  klik odpre eKartico; stolpec Napake brez besede »Napake« (ostane »pregled« + status);
+  če eKartica ne najde 62, rezervni saldo iz KIR config.
+
+DODANO V 3.0.138
+----------------
+- Virman DDV: formula v potrditvenem oknu je zdaj berljiva s predznakom —
+  »5.000,00 − 1.261,61 (stanje 62 v dobro) = 3.738,39 EUR« (prej »+ -1.261,61«).
+- Lebdeči panel eDavki 1.2.55: konto 62 se izpiše v SI zapisu s predznakom
+  (−1.261,61 EUR), naslov panela pove učinek (v dobro → zniža virman /
+  še neplačano → zviša virman), v podatkih sta še Breme in Dobro.
+- Preverjeno po vsej verigi (eKartica → :5088/konto62 → KIR config → virman/e-pošta):
+  povsod podpisani saldo; plačilo = max(polje 51 + stanje 62, 0). Testi 10/10 OK.
+
+DODANO V 3.0.137
+----------------
+- UPN QR: popravek branja zneska v bankah — en BYTE tok + ECI ISO-8859-2
+  (segno), bel rob 3; prej optimize-chunki pogosto izpustili znesek.
+
+DODANO V 3.0.136
+----------------
+- Lebdeči panel / listview (DDV-O Oddaje 1.0.32, eDavki pregled 1.2.54): nov stolpec
+  »Konto 62« s saldom z eKartice — predznak ostane (−1.261,61 = v dobro, + = neplačano),
+  ker se stanje prišteje virmanu (plačilo = 51 + stanje).
+- Saldo se bere iz predpomnilnika seje (brez odpiranja zavihka); klik na znesek
+  ga osveži živo z eKartice in ga pošlje v KIR config (:5088/konto62).
+
+DODANO V 3.0.135
+----------------
+- Odpri sejo: če ni delovne kopije, SQL gumb onemogočen z jasnim razlogom;
+  po Minimax prenosu se delovna kopija shrani sama → naslednjič je SQL na voljo.
+
+DODANO V 3.0.134
+----------------
+- Besedila {…}: kremno ozadje urejevalnih polj + zelen predogled takoj ob tipkanju;
+  po Shrani se belo polje e-pošte takoj preklopi v Predogled s podatki.
+
+DODANO V 3.0.133
+----------------
+- E-pošta DDV: gumb »Besedila {…}« — urejaš vzorce za {konto62_obvestilo}
+  (v dobro / še neplačano) z {znesek}; shrani v ddvo_placeholder_texts.json.
+
+DODANO V 3.0.132
+----------------
+- Odpri sejo: zavrne prazno/napačno obdobje delovne kopije (npr. maj pri junij seji);
+  jasnejša napaka »prazna delovna kopija → Minimax API«.
+
+DODANO V 3.0.131
+----------------
+- Chrome dodatek 1.4.13 (Minimax odpiranje podjetij + Aktivni zavihek):
+  konto 62 z eKartice se pošlje s predznakom (stolpec Saldo, ne abs) —
+  stanje se enostavno prišteje virmanu (51 + stanje), tudi pri branju
+  prek Minimax sprožilnega URL-ja.
+
+DODANO V 3.0.130
+----------------
+- E-pošta DDV: če obstaja konto 62, obvesti stranko — »v dobro« ali »še neplačano«;
+  znesek za plačilo = {placilo}; placeholder {konto62_obvestilo}.
+
+DODANO V 3.0.129
+----------------
+- Odpri sejo (Minimax): pred zagonom vpraša — shranjena SQL/datoteka (hitro)
+  ali svež Minimax API (počasneje).
+
+DODANO V 3.0.128
+----------------
+- Konto 62: stanje se enostavno prišteje virmanu (plačilo = 51 + stanje).
+
+DODANO V 3.0.127
+----------------
+- Konto 62: podpisani saldo (−presežek / +manjko), ne več abs.
+  Plačilo DDV = polje 51 + saldo 62; lebdeči panel eDavki 1.2.52 + virman/e-pošta.
+
+DODANO V 3.0.126
+----------------
+- eDavki 1.2.51: klik KIR/KPR (KR-…) odpre Vpogled, ne samo seznam
+  (čakanje + filter ID evidence + ponovni klik).
+
+DODANO V 3.0.125
+----------------
+- eDavki 1.2.50 + DDV-O 1.0.30: batch po obrazcih (ne »prvih N« → manjkajoči DDV/VIES).
+
+DODANO V 3.0.124
+----------------
+- DDV-O 1.0.29: Obdobje Mesečni/Tromesečni (kot Evidenca); ob zaznavi firme.
+
+DODANO V 3.0.123
+----------------
+- DDV e-pošta nagovor: trše čiščenje {odgovorna_oseba} (samo prva oseba,
+  tudi pri pokvarjenih »prokurist,« / »Ime, ; Ime« iz evidence).
+
+DODANO V 3.0.122
+----------------
+- DDV e-pošta: {odgovorna_oseba} samo prva oseba iz evidence (brez prokuristov/nazivov).
+
+DODANO V 3.0.121
+----------------
+- eDavki 1.2.49: ListPosted pred filtrom najprej »Vsi obrazci« (ne ostane DDV-O).
+
+DODANO V 3.0.120
+----------------
+- DDV-O 1.0.28 + eDavki 1.2.48: popravek lažnih ✕/manjka (samo dejansko oddano).
+
+DODANO V 3.0.119
+----------------
+- DDV-O 1.0.27: Obdobje ob izbiri firme iz Evidence (Mesečni/Tromesečni).
+
+DODANO V 3.0.118
+----------------
+- DDV-O 1.0.26: Obdobje; REK opis pod REK-O; Posodobi ne skrije stolpcev.
+
+DODANO V 3.0.117
+----------------
+- DDV-O 1.0.25 / eDavki 1.2.47: REK samo oddano (ne 1090 vsak mesec); DDV-O ujemanje obdobja.
+
+DODANO V 3.0.116
+----------------
+- DDV-O 1.0.24: gumb Zaženi :5090 iz obrazca (ddvo-oddaje://).
+
+DODANO V 3.0.115
+----------------
+- Ob izbiri podjetja samodejno nastavi Obdobje iz evidence firm (oddaja DDV):
+  Mesečni → prejšnji mesec; Tromesečni → prejšnji kvartal (1.1–31.3, 1.4–30.6, …).
+
+DODANO V 3.0.114
+----------------
+- DDV-O 1.0.23: e-pošta v novem oknu (HTML urejevalnik + priponke, kot KirKpr).
+
+DODANO V 3.0.113
+----------------
+- DDV-O 1.0.22: Naloži tabelo → nov listview + gumb Posodobi.
+
+DODANO V 3.0.112
+----------------
+- DDV-O 1.0.21 / DDV pregled 1.2.46: batch eDavki + cache + pametno čakanje.
+
+DODANO V 3.0.111
+----------------
+- DDV-O 1.0.20 / DDV pregled 1.2.45: junij REK 1001+1090 (manjkajoči ✕).
+
+DODANO V 3.0.110
+----------------
+- DDV-O 1.0.19: tromesečje=Q1/Q2; REK chk=meseci+vsi REKi.
+
+DODANO V 3.0.109
+----------------
+- DDV-O 1.0.18: REK po mesecih, več vrstic (1001/1090/2504…).
+
+DODANO V 3.0.108
+----------------
+- DDV-O 1.0.17: vsak REK-O (1001/1090/…) lastna vrstica.
+
+DODANO V 3.0.107
+----------------
+- DDV-O 1.0.16: ni oddano/potrjeno → rdeče-oranžna.
+
+DODANO V 3.0.106
+----------------
+- DDV-O 1.0.15 / DDV pregled 1.2.44: KIR status V obdelavi (ne Preverjena).
+
+DODANO V 3.0.105
+----------------
+- DDV-O 1.0.14: več REK-O na mesec (plača/regres/…) + širši panel.
+
+DODANO V 3.0.104
+----------------
+- DDV-O 1.0.13: chk nad stolpci — iskanje samo izbranih obrazcev.
+
+DODANO V 3.0.103
+----------------
+- DDV-O 1.0.12 / DDV pregled 1.2.43: REK-O obdobje = mesec obrazca (Q2→junij), ne oddaja.
+
+DODANO V 3.0.102
+----------------
+- DDV-O 1.0.11: gumb Naloži tabelo v zgornji vrstici Evidence.
+
+DODANO V 3.0.101
+----------------
+- DDV-O 1.0.10: OSS iz Minimax UI (Aeon PregledOSS), ne samo Evidence.
+
+DODANO V 3.0.100
+----------------
+- DDV-O 1.0.9: OSS obvezen samo če Evidence OSS sistem=DA (Minimax).
+
+DODANO V 3.0.99
+---------------
+- DDV-O 1.0.8: Zaznaj firmo spet jasna, če :5090 ne teče.
+
+DODANO V 3.0.98
+---------------
+- DDV-O 1.0.7: če ni potrebe → prazna celica (ne »?«).
+
+DODANO V 3.0.97
+---------------
+- DDV-O 1.0.6: druga vrstica tabele — Status evidence / Številka EDP.
+
+DODANO V 3.0.96
+---------------
+- DDV-O 1.0.5: kontrola AOP 12→VIES-KP, AOP 11a→PD-O (DDV pregled 1.2.42).
+
+DODANO V 3.0.95
+---------------
+- DDV-O 1.0.4: REK-O obdobje iz Podrobnosti (01.2026), ne Obdobje 20260213.
+
+DODANO V 3.0.94
+---------------
+- DDV-O Oddaje 1.0.3: tabela oddaj ✓/✕ + klik odpre obrazec;
+  DDV pregled 1.2.40 (zunanji API za oddaje).
+
+DODANO V 3.0.93
+---------------
+- DDV-O Oddaje 1.0.2: panel brez praznega prostora; seznam firm +/−;
+  višina sledi vsebini.
+
+DODANO V 3.0.92
+---------------
+- DDV-O Oddaje 1.0.1: resize panela, +/− vse, zaznava Minimax firme;
+  strežnik :5090 mora teči (start_server.bat).
+
+DODANO V 3.0.91
+---------------
+- Hub 1.0.20: nameščeni moduli → gumb »Mapa« (ne zeleni »Posodobi«).
+
+DODANO V 3.0.90
+---------------
+- Hub 1.0.19: kopiranje v float panelu brez Clipboard API
+  (odprava Permissions policy Napak na Minimaxu).
+
+DODANO V 3.0.89
+---------------
+- Hub 1.0.18: ne vbrizga skripte na chrome:// (odprava Napak).
+
+DODANO V 3.0.88
+---------------
+- Hub 1.0.17 + moduli: externally_connectable za Hub (manj Napak).
+- Chrome dodatek Podjetja 1.4.12.
+
+DODANO V 3.0.87
+---------------
+- Hub 1.0.16: manj lažnih Napak pri odpiranju neobstoječih modulov.
+
+DODANO V 3.0.86
+---------------
+- Chrome: ločen vtičnik DDV-O Oddaje + e-pošta (Outlook/SMTP, :5090).
+- Hub 1.0.15: suite kartica 4 · DDV-O oddaje.
+
+DODANO V 3.0.85
+---------------
+- Hub 1.0.14: lebdeča forma se prilagodi višini vsebine.
+
+DODANO V 3.0.84
+---------------
+- Hub 1.0.13: vsi okviri z +/−; zgoraj − vse / + vse.
+
+DODANO V 3.0.83
+---------------
+- Hub 1.0.12: sivo za spodnje (Namestitev / nameščeni), zgoraj zeleno.
+
+DODANO V 3.0.82
+---------------
+- Hub 1.0.11: ↑↓ vrstni red suite gumbov in modulov (se shrani).
+
+DODANO V 3.0.81
+---------------
+- Hub 1.0.10: nameščene kartice sivo; gumb Naslov za preimenovanje.
+
+DODANO V 3.0.80
+---------------
+- Minimax suite Hub 1.0.9: večja forma + gumb −/+ za pomanjšanje.
+
+DODANO V 3.0.79
+---------------
+- Minimax suite Hub 1.0.8: preurejen UI (koraki, ikone, namigi, strežniki).
+
+DODANO V 3.0.78
+---------------
+- Chrome Hub 1.0.7 = Minimax suite: ena forma z zavihki Podjetja |
+  OCR/Nabiralnik | Forward (tri vtičnike odpre iz Huba; pinaj samo Hub).
+
+DODANO V 3.0.77
+---------------
+- Minimax OCR v1.47 + Forward: Na disk shrani v D:\Trops\{Zšt}\Nabiralnik
+  (Zšt iz evidence; mapa Nabiralnik se ustvari; pot se ponudi pred shranjevanjem).
+  Zahteva zagnan Minimax_forward (:5000).
+
+DODANO V 3.0.76
+---------------
+- Minimax OCR v1.46: »V osnutke« zanesljiveje klikne Obdelaj datoteke
+  (sinhronizacija chk, Stranka iz OCR, potrditev dialoga).
+DODANO V 3.0.75
+---------------
+- Minimax OCR v1.45: batch Ustavi / Nadaljuj (OCR in Na disk) – pavza pri
+  npr. 10, prenesi, nato nadaljuj preostanek.
+
+DODANO V 3.0.74
+---------------
+- Minimax OCR v1.44: vidni ☐/☑ (Minimax CSS je skrival chk), gumb − za
+  skrčitev panelov, »Na disk (PDF)« in »V osnutke (Obdelaj)« za označene.
+
+DODANO V 3.0.73
+---------------
+- Minimax OCR v1.43: nabiralnik listview (chk kot Vhodni dokumenti) –
+  Označi račune, OCR izbrane (firma+znesek), Odpri + Kateri PR;
+  checkboxi se sinhronizirajo z Minimaxom (Obdelaj / Premakni…).
+
+DODANO V 3.0.72
+---------------
+- Chrome Hub 1.0.6: moduli z +/− (skrči/razširi), gumbi −/+ vse.
+
+DODANO V 3.0.71
+---------------
+- eDavki DDV v1.2.38 + KIR parse: konto 62 jemlje stolpec Saldo
+  (tudi 0,00), ne Breme/Dobro (−2.221,22 ni preplačilo, če je Saldo 0).
+
+DODANO V 3.0.70
+---------------
+- Minimax OCR v1.35: forma »Nova stranka« se odpre zgoraj (gumbi vidni);
+  davčna št. se zanesljivo prepiše iz »ID za DDV: SI…« / spomina (npr. 73841922).
+
+DODANO V 3.0.69
+---------------
+- Jasnejše sporočilo ob 401: firma je na seznamu, a API uporabnik nima
+  pravic (npr. PETERLIN — konti/stranke/PR zavrnjeni; KLUG/LUMOSTAY OK).
+
+DODANO V 3.0.68
+---------------
+- Podatki iz Minimaxa: ob HTTP 401 »Pregled temeljnic« samodejni preklop
+  na module knjige IR/PR (npr. PETERLIN brez pravice do temeljnic).
+
+DODANO V 3.0.67
+---------------
+- Minimax šifranti: posamezen HTTP 401 (»Pregled sistemskih šifrantov«)
+  ne podre celotne povezave; jasnejše sporočilo o pravicah API uporabnika.
+
+DODANO V 3.0.66
+---------------
+- Popravek Chrome »Napake«: lastError + Hub odpiranje (DDV 1.2.37,
+  Minimax podjetja 1.4.10, eDavki Forward 1.1.7).
+
+DODANO V 3.0.65
+---------------
+- Chrome Hub 1.0.5: opis + hint pri vsakem vtičniku.
+
+DODANO V 3.0.64
+---------------
+- Minimax Forward: strežnik znova iz Chrome_add (smtp_secret); v1.4.4.
+
+DODANO V 3.0.63
+---------------
+- Minimax Forward 1.4.3: Gmail priponke + pravi zavihek (ne Hub popup).
+
+DODANO V 3.0.62
+---------------
+- Chrome Hub 1.0.4: »Dodaj modul« pripet na dno panela.
+
+DODANO V 3.0.61
+---------------
+- Chrome Hub 1.0.3: »Dodaj modul« v zložljivem panelu (+/−).
+
+DODANO V 3.0.60
+---------------
+- Popravek Napake v Chromu: odstranjen externally_connectable ids=*
+  (Hub sporočila ostanejo; Minimax podjetja 1.4.9, DDV 1.2.36).
+
+DODANO V 3.0.59
+---------------
+- Chrome Hub 1.0.2: Namesti iz mape (pot + chrome://extensions), Namesti vse.
+
+DODANO V 3.0.58
+---------------
+- Chrome Hub 1.0.1: boljše ujemanje + gumb Poveži za nameščene module.
+
+DODANO V 3.0.57
+---------------
+- Iz Chrome_add vrnjeni projekti brez vtičnika: Minimax, Minimax_Avtomatizacija,
+  EdavkiForward → spet D:\PISARNA\Python\.
+
+DODANO V 3.0.56
+---------------
+- Chrome Hub (Chrome_add\Chrome_Hub): en lebdeči obrazec z moduli;
+  Odpri → kirkpr_hub_open. Minimax podjetja 1.4.8 (+ sync AktivniZavihek).
+
+DODANO V 3.0.55
+---------------
+- Pregled: vsi Chrome vtičniki so v Chrome_add; README loči vtičnike
+  in povezane strežnike (vključno z Minimax_forward\extension).
+
+DODANO V 3.0.54
+---------------
+- V Chrome_add dodan še Zajem_Spletne_Strani.
+
+DODANO V 3.0.53
+---------------
+- V Chrome_add dodani še Minimax, Minimax_Avtomatizacija, Minimax_forward
+  (Minimax_OCR je bil že prej).
+
+DODANO V 3.0.52
+---------------
+- V Chrome_add dodana tudi EdavkiForward in EdavkiForward_Chrome.
+
+DODANO V 3.0.51
+---------------
+- Chrome vtičniki prestavljeni v D:\PISARNA\Python\Chrome_add\
+  (AktivniZavihek_WebApp, Minimax_Odpiranje_Podjetij, Edavki_DDV_Pregled, Minimax_OCR).
+
+DODANO V 3.0.50
+---------------
+- Chrome vtičniki (Minimax podjetja 1.4.7, eDavki pregled 1.2.30): klik
+  ikone → takoj lebdeči panel na strani (kot OCR), ne klasikni popup.
+
+DODANO V 3.0.49
+---------------
+- E-pošta: vedno zahteva potrdilo o prejemu (dostava); po pošiljanju jasno
+  obvestilo, da te Outlook obvesti, ko je e-pošta dostavljena.
+
+DODANO V 3.0.48
+---------------
+- Outlook: gumb »Pošlji« dejansko pošlje (Send), ne samo odpre osnutka;
+  prejemniki SMTP z `;` (brez dialoga Preverjanje imen). Vzrok: OLD TOWN /
+  LUMOSTAY junij 2026 — osnutek odprt, a zaradi vejic v Za: ni šlo ven.
+
+DODANO V 3.0.47
+---------------
+- Playwright Minimax vgrajen v paket kirkpr_minimax_pw — brez odvisnosti
+  od map Fakturiranje / Fakturiranje_ChatGPT / codex.
+
+DODANO V 3.0.46
+---------------
+- Outlook: več e-naslovov z `;` (ne vejico) — brez dialoga
+  »Preverjanje imen« ob pošiljanju.
+
+DODANO V 3.0.45
+---------------
+- E-pošta: ena predloga »DDV + virman« (daljši vzorec); odstranjene
+  podvojene predloge z enako vsebino.
+
+DODANO V 3.0.44
+---------------
+- E-pošta DDV + virman: UPN QR koda za plačilo v telesu (Outlook cid:),
+  placeholder {qr_block}; podatki FURS (IBAN, SI19…-62006, znesek, datum).
+
+DODANO V 3.0.43
+---------------
+- Samoobdavčitev EU: odbitek 41/42 iz PR (odbitni/neodbitni), ne iz IR.
+  Popravek 51=0 namesto 60 (npr. OLD TOWN: PR nd → 41=0, 51=23a).
+
+DODANO V 3.0.42
+---------------
+- Minimax API: ob HTTP 401 samodejna ponovna OAuth prijava + retry;
+  pred »Podatki iz Minimaxa« se žeton vedno osveži (potečen token).
+
+DODANO V 3.0.41
+---------------
+- Virman SEPA: vedno DbtrAgt/BIC (Hal@bank SAXParseException, če manjka).
+  BIC iz 5-mestne SI oznake / družine banke (npr. 02312 → NLB LJBASI2X).
+
+DODANO V 3.0.40
+---------------
+- Chrome dodatek 1.4.5: gumb »Zaznaj iz Minimax« v popup-u (navbar →
+  lokalni šifrant), samodejna uskladitev ob odprtju na Minimaxu.
+
+DODANO V 3.0.39
+---------------
+- Chrome dodatek 1.4.4: privzeta izbira = aktivna Minimax firma
+  (naslov/navbar), ne več trdo kodiran KLUG; čistejši zajem organizacij.
+
+DODANO V 3.0.38
+---------------
+- Knjige IR/PR: gumbi »Vse označi« in »Vse odznači« za stolpce (chk).
+
+DODANO V 3.0.37
+---------------
+- E-pošta DDV+virman: vrstica »Obveznost … (preplačilo konta 62)« se prikaže
+  samo, če je konto 62 ≠ 0.
+
+DODANO V 3.0.36
+---------------
+- Ime seje se ne spreminja samodejno (ne ob Minimax prenosu, ne ob odpiranju).
+  Preimenovanje samo ročno (Shrani sejo / Uredi); dialog ponudi predlagano ime.
+
+DODANO V 3.0.35
+---------------
+- »Odpri sejo« pri Minimax seji vedno sproži svež prenos iz API
+  (ne odpre shranjene delovne kopije). Datotečne seje ostanejo kot doslej.
+
+DODANO V 3.0.34
+---------------
+- Neodbitni DDV (reprezentanca …) gre v P17, ne v P18/P19 — Σ čipi
+  »→41/42« se ujemajo z eDavki (npr. 41=4802, 42=5).
+
+DODANO V 3.0.33
+---------------
+- OBDOBJE (filter knjige / DDV-O) iz VatDate, ne iz datuma prejema.
+  Popravek razlike 31/41 (npr. prejem v aprilu, Datum DDV 31.3. → Q1;
+  davčno obdobje 01-03 kot v Minimax knjigi).
+
+DODANO V 3.0.32
+---------------
+- Popravek praznega prenosa: spet najprej temeljnice knjige IR/PR
+  (kot 3.0.30), moduli izdanih/prejetih samo za manjkajočo knjigo
+  (npr. Dišport PR). Napaka pri modulih ne ustavi temeljnic.
+
+DODANO V 3.0.31
+---------------
+- Poskus: moduli pred temeljnicami (povzročil prazen prenos) — razveljavljeno v 3.0.32.
+
+DODANO V 3.0.30
+---------------
+- DDV-O iz temeljnic usklajen z eDavki (QUICK Q1 2026): filter po VatDate,
+  stopnje S/Z/0(=5%)/O/N, neodbitni DDV ne gre v 41/42, N izven 31/33.
+- Prenos temeljnic z ±45 dni okoli obdobja (temeljnica pred obdobjem,
+  Datum DDV znotraj).
+
+DODANO V 3.0.29
+---------------
+- Knjige IR/PR = temeljnice IR/PR (povezane s knjigo / VatBook).
+  Moduli izdanih/prejetih so rezerva, če temeljnic ni.
+
+DODANO V 3.0.28
+---------------
+- Knjige: spet iz temeljnic (polni stolpci 7…20 + Σ čipi); IR/PR moduli
+  so rezervni, če temeljnic ni. Sumarni zneski v več vrsticah.
+- Po naložitvi spet Neničelni (skrij 0,00); gumb Vsi pokaže vse stolpce.
+
+DODANO V 3.0.27
+---------------
+- Briši sejo: res zbriše (brez takojšnje ponovne shrambe); izbira v
+  comboboxu samo firmo/obdobje, podatke naloži »Odpri sejo«.
+- »Podatki iz Minimaxa«: počisti stare podatke in nadomesti; ena seja na
+  firmo+obdobje (brez duplikatov api/journals).
+- Knjige: privzeto vsi FURS stolpci (tudi ničelni 9…20); gumb Neničelni
+  jih po želji skrije.
+
+DODANO V 3.0.26
+---------------
+- »Podatki iz Minimaxa«: najprej IR/PR moduli, če prazni → temeljnice.
+- Knjige po prenosu: polni FURS stolpci (7…20 / P7–P27), ne ozek API predogled.
+
+DODANO V 3.0.25
+---------------
+- Izbira seje (npr. Minimax PROJEST 2026-05) takoj nastavi firmo in obdobje;
+  pri Minimax seji brez datoteke tudi ponovno naloži podatke.
+
+DODANO V 3.0.24
+---------------
+- Podatki iz Minimaxa (temeljnice): ohrani konte iz knjižb (npr. IR 7620,
+  PR 6500…), ne povoziti s privzetim 7601/4190.
+- DDV-O: EU dobave → polje 12; samoobdavčitev EU → 23/23a + 32/32a;
+  uskladitev z oddanim obrazcem (npr. polje 51).
+
+DODANO V 3.0.23
+---------------
+- Popravek prikaza po »Podatki iz Minimaxa«: napaka unknown option '-style'
+  (DDV-O gumbi PillButton ne uporabljajo več ttk style).
+
+DODANO V 3.0.22
+---------------
+- »Podatki iz Minimaxa«: okno z indikatorjem napredka (x/y, %) med prenosom
+  temeljnic + obvestilo ob uspehu ali napaki.
+
+DODANO V 3.0.21
+---------------
+- »Podatki iz Minimaxa« bere temeljnice IR/PR (journals), ne samo module
+  izdanih/prejetih računov — primerno za PROJEST (knjiženo v temeljnico).
+
+DODANO V 3.0.20
+---------------
+- Gumb »Podatki iz Minimaxa« (Ctrl+Shift+M): za izbrano firmo in obdobje
+  naloži IR/PR iz Minimax API v program (poleg ZIP/JSON/XML/CSV).
+
+DODANO V 3.0.19
+---------------
+- Ob zagonu ne odpira več starega Vasco SQLite (napaka »Podprti formati…«).
+  Tak vir pozabi; uvoz Vasco je v ProJest Studio.
+
+DODANO V 3.0.18
+---------------
+- Odstranjen uvoz Vasco/Excel (IF*/kp*) — ostane v ProJest Studio.
+  KIR/KPR: FURS ZIP/JSON, Knjige, DDV-O, Minimax API.
+
+DODANO V 3.0.17
+---------------
+- Uvoz preimenovan v »Vasco« (izvoz iz Vasco, ne generični Excel).
+- ProJest (konte 7620, stranke, Minimax XML) ostane ločen program.
+
+DODANO V 3.0.16
+---------------
+- Vasco/Excel: PR obdobje po »Datum prejema« (ne Datum listine = DDV).
+- Vasco IR: Darila = listina 3…, Fitnes = listina 2….
+- Shrani sejo / combo sej: aktivna firma (Projest), ne prepiše Co.Next.
+
+DODANO V 3.0.15
+---------------
+- Uvoz Vasco knjig IR/PR (IF* = IR, kp* = PR) → SQLite → Knjige → Minimax.
+  FURS ZIP/JSON nespremenjen. SQLite shema združljiva s ProJest.
+  Gumb »Vasco« / Ctrl+Shift+E.
+
+DODANO V 3.0.14
+---------------
+- Knjige: samodejno skrij stolpce z Σ 0,00; gumba Neničelni / Vsi (razširi).
+
+DODANO V 3.0.13
+---------------
+- Knjige JSON: filter po davčnem obdobju (kot DDV-O/eDavki), ne samo P4 —
+  Σ se ujema z oddanim obrazcem (npr. 23a, 31, 32a, 41).
+
+DODANO V 3.0.12
+---------------
+- Knjige IR/PR: pri stolpcih / chk / Σ oznaka DDV-O polja (npr. →11, →32a).
+
+DODANO V 3.0.11
+---------------
+- Glava: naslov + gumbi + vir/podjetje v enem panelu.
+- Knjige: panel »vir / povzetek« s skrči/razširi (JSON/API + Σ).
+- Skrči/razširi: zanesljivejši klik na celotno pasico (▶/▼).
+
+DODANO V 3.0.10
+---------------
+- Knjige: sumarni zneski kot vidni rumeni »čipi« (samo neničelni), pod chk.
+
+DODANO V 3.0.09
+---------------
+- Knjige: Σ zneski pod chk (nad tabelo).
+- Obdobje / Seje / Povzetek: pravo skrči/razširi (klik na naslov).
+- Zavihek Knjige samodejno skrči zgornje panele → več vrstic tabele.
+- Gumb › = naslednji mesec (ni skrči).
+
+DODANO V 3.0.08
+---------------
+- Knjige: chk za vsak stolpec (prikaz/skritje) + sumarni zneski (Σ v tabeli in spodaj).
+
+DODANO V 3.0.07
+---------------
+- Knjige JSON: uradni FURS/Minimax stolpci (IR P2–P27, PR P2–P21), ne kontiranje.
+
+DODANO V 3.0.06
+---------------
+- Knjige: predogled JSON ali Minimax API; Knjiga IR/PR z originalnimi stolpci.
+
+DODANO V 3.0.05
+---------------
+- Outlook: manj raztezanja ob pošiljanju (prazni <p> → <br>; Word SpaceAfter=0).
+
+DODANO V 3.0.04
+---------------
+- E-pošta DDV: placeholder {odgovorna_oseba} iz Evidence (brez direktor/samostojno).
+
+DODANO V 3.0.03
+---------------
+- Popravek zagona: zavihek Knjige (IR/PR) + primerjava z lokalnim KIR/KPR.
+- IBAN: Evidenca firm kot glavni vir (3.0.02).
+
+DODANO V 3.0.02
+---------------
+- IBAN plačnika: Evidenca firm je glavni vir (Transakcijski račun); osvežitev z diska.
+
+DODANO V 3.0.01
+---------------
+- IBAN plačnika: vir iz Evidence / AJPES (ne surov DURS TRR).
+- Gumb »IBAN« v plačilnem nalogu: živo branje z AJPES eRTR; če je več → combo.
+- Urejevalnik e-pošte: chk priponke DDV-O / Virman (iz 2.77).
+
+DODANO V 2.77-cursor
+--------------------
+- Urejevalnik e-pošte DDV: chk priponke DDV-O in Virman (Outlook dobi samo označene).
+
+DODANO V 2.76-cursor
+--------------------
+- »PDF + virman…«: lokalni podatki, brez Minimax prijave.
+- Konto 62: če nič → 0 (brez vprašanja); eKartica namesto Minimax sprožilca.
+- Chrome dodatek 1.4.3: content script tudi na eDavki eKartica.
+
+DODANO V 2.75-cursor
+--------------------
+- Gumb »PDF + virman…«: ustvari DDV-O PDF + SEPA virman.
+- Priponke s chk: DDV-O PDF, Virman XML, dodatne datoteke → Outlook.
+
+DODANO V 2.74-cursor
+--------------------
+- DDV-O: filter po davčnem obdobju (OBDOBJE MMYY / P2), ne samo P4 — ujema se
+  z oddanim eDavki XML (npr. f51=73787 za Co.Next 06/2026).
+
+DODANO V 2.73-cursor
+--------------------
+- FURS CSV v ZIP (brez imen stolpcev): pravilno branje glave + KIR/KPR → obdobje
+  iz datoteke (ne več 2000-01-01).
+- Privzet filter = prejšnji mesec; ime ZIP …-2026-6 tudi razbere junij 2026.
+
+DODANO V 2.72-cursor
+--------------------
+- Pravila ZIP: JSON/XML/CSV znotraj ZIP; prednostni format velja tudi v ZIP-u;
+  ločena KIR+KPR CSV; ugnezdeni ZIP 1 nivo; sicer najpopolnejši (JSON>XML>CSV).
+
+DODANO V 2.71-cursor
+--------------------
+- Prenos po pridobitvi: Minimax API ali datoteka XML za uvoz (IR+PR + ZIP).
+- Gumbi »Samo pridobi« / »Pridobi in prenesi«; nastavitev se shrani.
+
+DODANO V 2.70-cursor
+--------------------
+- Pridobivanje podatkov iz ZIP: pregled vsebine + gumb »Pridobi v program« (KIR/KPR števila).
+- ZIP: tudi ugnezdeni ZIP (1 nivo); jasna napaka s seznamom datotek, če ni KIR/KPR.
+
+DODANO V 2.69-cursor
+--------------------
+- Datoteka → »Pridobivanje podatkov (CSV/XML/JSON)…«: privzeta mapa, prednostni format,
+  zadnja datoteka, samodejni zagon; Ctrl+O upošteva nastavitve.
+
+DODANO V 2.68-cursor
+--------------------
+- Belo telo + Od + razmiki + potrdila = en vzorec; zgornja Konfiguracija jih ob odprtju ne prepiše.
+- Shrani / samodejno shrani vse parametre v JSON + config podjetja.
+
+DODANO V 2.67-cursor
+--------------------
+- Belo polje = Outlook: vrstice z <br>, prazna vrstica = razmik (brez napihnjenih marginov).
+- Pokvarjeni raztegnjeni vzorci (DDV_virman / test) obnovljeni na kompakten izgled.
+
+DODANO V 2.66-cursor
+--------------------
+- Belo telo: samodejno shranjevanje ob tipkanju + preverjanje zapisa na disk.
+- Odpiranje vedno naloži vzorec z diska; status ✓/● pod belim poljem.
+
+DODANO V 2.65-cursor
+--------------------
+- Outlook in Shrani konfiguracijo oba shranita vzorec (belo polje) na disk.
+- Ob shranjevanju stisne zaporedne prazne odstavke; Od privzeto iz vzorca.
+
+DODANO V 2.64-cursor
+--------------------
+- Outlook Od:: zanesljiv SendUsingAccount (OLE Invoke 64209) — ne več privzeti windowslive.
+- Manj beline v telesu: stisnjene prazne odstavke + manjši spacer.
+
+DODANO V 2.63-cursor
+--------------------
+- Belo polje = VZOREC z {placeholders} (ne vedno KLUG/zneski).
+- Gumbi »Vzorec {…}« / »Predogled s podatki«; Naloži napolni Od+zadevo+besedilo vzorca.
+- Outlook zapolni vzorec s podatki; Shrani konfiguracijo shrani vzorec.
+
+DODANO V 2.62-cursor
+--------------------
+- Izbira vzorca: zanesljivo .get(), gumb Naloži, ✓ NALOŽENO.
+
+DODANO V 2.61-cursor
+--------------------
+- Vzorec = Od + zadeva + besedilo + razmiki.
+
+DODANO V 2.61-cursor
+--------------------
+- Vzorec e-pošte = celota: Od + zadeva + besedilo + razmiki.
+- Izbor / Odpri naloži vse; pod Predloga je povzetek vzorca.
+
+DODANO V 2.60-cursor
+--------------------
+- Gumb »Shrani konfiguracijo«: predloga + Od/razmike + preverjanje na disk.
+
+DODANO V 2.60-cursor
+--------------------
+- Gumb »Shrani konfiguracijo«: en klik shrani predlogo (HTML) + Od/razmike/potrdila
+  in preveri zapis na disk (poti v potrditvenem oknu).
+
+DODANO V 2.59-cursor
+--------------------
+- Predloga: izbira/Odpri/Kopiraj VEDNO naloži HTML v belo polje (brez prekinitve).
+- Ob zamenjavi se trenutna tipko shrani; izbira po indeksu (ne samo po imenu).
+
+DODANO V 2.58-cursor
+--------------------
+- Predloge: Odpri… (seznam shranjenih); zadnja aktivna se odpre naslednjič.
+- Manjkajoči/star id predloge se samodejno popravi na obstoječo.
+
+DODANO V 2.57-cursor
+--------------------
+- Predloge: Preimenuj / Kopiraj / Briši (gumbi + meni Predloga).
+- Ime predloge urejljivo; Shrani kot novo vpraša za ime.
+
+DODANO V 2.56-cursor
+--------------------
+- Shrani predlogo = shrani (brez vprašanj). Shrani trenutno belo polje
+  (barve, krepko, razmiki); zneske/firmo pretvori nazaj v {placeholders}.
+
+DODANO V 2.55-cursor
+--------------------
+- E-pošta: Od (račun) vedno viden (pod Za); ne prepiše ga konfiguracija ob odprtju.
+- Shrani + Outlook ne prepiše več shranjenega vzorca s {placeholders}.
+- Outlook dobi isto obliko kot belo polje (barve/krepko, brez ponovnega sploščanja).
+
+DODANO V 2.54-cursor
+--------------------
+- E-pošta: WYSIWYG urejanje v belem polju (kot Outlook). HTML panel odstranjen —
+  HTML se sestavi v ozadju.
+
+DODANO V 2.53-cursor
+--------------------
+- Gumb »E-pošta virman…«: dejanski zneski iz DDV-O (ne več 0,00), konto 62
+  iz shranjenega, priponke PDF/virman če obstajajo, jasno potrdilo po Outlooku
+  (Od + razmiki + zneski).
+
+DODANO V 2.52-cursor
+--------------------
+- Outlook Od (račun): deluje zares (točen SMTP + alias info@quickmb.si/.com),
+  gumb »Osveži račune«, opozorilo če računa ni v Outlooku, SendUsingAccount
+  pred/po HTMLBody in po Display.
+- Razmiki v Outlooku: odstranjeno MSO »p { margin:0 }« ki je brisalo razmike;
+  Word-prijazni margin-bottom (pt) + line-height %.
+
+DODANO V 2.51-cursor
+--------------------
+- Refresh videza: Windows ttk barve (lightcolor/darkcolor), vijolične pasice
+  Obdobje/Seje, barvni PillButton gumbi na IR/PR/DDV (kot e-pošta).
+  Naslov v glavi mora kazati v2.51-cursor — sicer zapri staro okno in znova zaženi.
+
+DODANO V 2.50-cursor
+--------------------
+- Celoten GUI: Transkript videz (vijolična glava, barvni gumbi Accent/Success/
+  Danger/Purple/Warning, vijolični zavihki). Skupni modul kirkpr_gui_style.py.
+
+DODANO V 2.49-cursor
+--------------------
+- E-pošta DDV: videz kot Transkript (vijolična glava, barvni gumbi).
+- Meni + gumb »⚙ Konfiguracija« — izbira/shramba prednastavitev (Od, razmiki,
+  potrdila). Datoteka: ddvo_email_editor_presets.json.
+
+DODANO V 2.48-cursor
+--------------------
+- Oblikovanje kot Transkript: Vrstica / Odstavek / ↕ Tesno / Uporabi razmike /
+  ✍️ Podpis. Outlook dobi <p style="margin + line-height">; Od: iz comboboxa
+  se nastavi pred in po HTMLBody.
+
+DODANO V 2.47-cursor
+--------------------
+- E-pošta: paneli Outlook / Oblikovanje = skrči/razširi (▼/▶).
+- Outlook: vsaka vrstica = <tr><td> (brez <br>) — Word ne napihne več razmikov.
+  Predogled uporablja isto sploščitev kot Outlook.
+
+DODANO V 2.46-cursor
+--------------------
+- Outlook Od (račun): braco.mihelj@gmail.com, bracom@windowslive.com,
+  info@quickmb.com.
+
+DODANO V 2.45-cursor
+--------------------
+- E-pošta Outlook: Od = info@quickmb.com, odloženo pošiljanje (datum/čas),
+  potrdilo o prejemu in o odprtju — nastavitve v urejevalniku pred Outlookom.
+
+DODANO V 2.44-cursor
+--------------------
+- Outlook e-pošta: Word ne napihne več razmikov — telo gre kot ena tabela
+  z <br> (Referenca/IBAN/Datum strnjeno). Urejevalnik ostane z <p>/<br>.
+
+DODANO V 2.43-cursor
+--------------------
+- Seje: tromesečje (npr. 4–6) se odpre kot celotno obdobje, ne samo zadnji
+  mesec. Stare seje, shranjene kot »junij« znotraj mape 2026-04-01_2026-06-30,
+  se ob Odpri sejo popravijo na apr–jun.
+
+DODANO V 2.42-cursor
+--------------------
+- eDavki konto 62: Chrome odpre incognito + minimizirano (v ozadju, ne skoči
+  čez formo). Razširitev 1.4.2 ne aktivira zavihkov (active:false).
+- Outlook: HTML za pošiljanje z inline stili + <p>→<div> (Word), da oblika
+  po Send ostane enaka kot v osnutku/predogledu.
+  Chrome: dovoljenje »Dovoli v načinu Incognito« za razširitev Minimax.
+
+DODANO V 2.41-cursor
+--------------------
+- E-pošta: živi predogled 1:1 z urejevalnikom (tipkanje = takojšnji pregled).
+  HTML se ne prepisuje več — </p><br> in <br><br> grejo enako v Outlook.
+
+DODANO V 2.40-cursor
+--------------------
+- E-pošta: <br> deluje kot v Transkriptu/šifrantu — namerni razmiki (<br><br>)
+  ostanejo. Gumbi »Nova vrstica« in »Prazna vrstica«. Odstrani se samo
+  napačni </p><br>.
+
+DODANO V 2.39-cursor
+--------------------
+- Dialog Shrani/Uredi sejo: širok Entry z autosize glede na dolžino imena.
+
+DODANO V 2.38-cursor
+--------------------
+- Urejevalnik e-pošte virman: gumbi vedno vidni spodaj (Shrani / Outlook),
+  shranjevanje postavitve okna, »Počisti razmike«, ob Outlooku/zapiranju
+  shrani predlogo; oblikovanje deluje tudi brez izbora (vstavi tage).
+
+DODANO V 2.37-cursor
+--------------------
+- Seje: lastna vrstica z gumbi Odpri sejo / Shrani sejo / Uredi / Briši.
+  Shramba v SQLite (kirkpr_sessions.sqlite3), kot pri Projestu.
+  Combobox samo izbere; odpiranje z gumbom ali dvojnim klikom.
+
+DODANO V 2.36-cursor
+--------------------
+- E-pošta virman: normalizacija <br> (brez <br><br> / praznih vrstic znotraj
+  <p>), shranjevanje in Outlook predogled očistita dvojne prelome.
+
+DODANO V 2.35-cursor
+--------------------
+- Virman XML se shrani v TROPS\{Zšt}\Virmani\ (ne v DDV\). PDF ostane v DDV\.
+
+DODANO V 2.34-cursor
+--------------------
+- Combobox »Seje« desno v vrstici obdobja: zadnje shranjene seje
+  (različne firme + obdobja + ZIP/delovna kopija). Izbor preklopi podjetje
+  in odpre datoteko. Samodejni zagon še vedno odpre zadnjo sejo.
+
+DODANO V 2.33-cursor
+--------------------
+- E-pošta virman: manjši razmik v Outlooku (p { margin:0 }, brez </p><br>),
+  kot v Fakturiranju. Forma: gumb »E-pošta virman…« na zavihku DDV-O
+  ali Datoteka → Uredi predlogo e-pošte DDV + virman….
+
+DODANO V 2.32-cursor
+--------------------
+- Virman XML usklajen z Minimax originalom: VATX, prejemnik
+  »PREHODNI DAVČNI PODRAČUN - PRORAČUN DRŽAVE«, AdrLine, BIC plačnika (npr. BACXSI22),
+  Ref SI1949142275-62006 (brez presledka), AddtlRmtInf »Plačilo DDV za: 4-6.2026«.
+  Na formi/e-pošti ostane prikaz SI19 49142275-62006.
+
+DODANO V 2.31-cursor
+--------------------
+- Referenca FURS: SI19 49142275-62006 (presledek za modelom 19).
+
+DODANO V 2.30-cursor
+--------------------
+- HTML urejevalnik e-pošte DDV+virman (kot Fakturiranje): krepko / ležeče /
+  podčrtaj, barve, pisava+velikost, predogled, shranjevanje predlog
+  (ddvo_email_templates.json), spremenljivke {nagovor} {obdobje} {placilo} …
+
+DODANO V 2.29-cursor
+--------------------
+- Forma plačilnega naloga: večje okno, gumbi vedno pripeti na dnu
+  (Preberi / Prilepi / Prekliči / Potrdi).
+
+DODANO V 2.28-cursor
+--------------------
+- E-pošta stranki: vrstici
+  »Obveznost X EUR − Y EUR (preplačilo konta 62)« in
+  »Znesek za plačilo: Z EUR«; urejljiva forma (Za / Zadeva / telo) pred Outlookom,
+  podpis kot v Fakturiranju; opcijski p.s. iz ddvo_email_ps.
+
+DODANO V 2.27-cursor
+--------------------
+- Če eKartica ni odprta, jo Chrome razširitev v1.4.1 odpre; po davčni številki
+  iz Evidence Firm preklopi zavezanca (Zamenjava zavezanca), nato prebere konto 62.
+
+DODANO V 2.26-cursor
+--------------------
+- Samodejno branje eDavki konta 62 (preplačilo) z eKartice prek Chrome
+  razširitve v1.4.0 — npr. −55,03 → 55,03 v formi plačilnega naloga.
+- Gumb »Preberi z eDavkov«; opozorilo, če je 62 še 0,00.
+
+DODANO V 2.25-cursor
+--------------------
+- Forma plačilnega naloga z vsemi podatki (51, 62, FURS IBAN, referenca SI19 DŠ-62006,
+  IBAN plačnika, e-pošta, datum).
+- Potrdi → SEPA virman.xml (pain.001) + DDV PDF v mapo TROPS\\{Zšt}\\DDV,
+  znesek v odložišče, Outlook osnutek s priponkama za stranko.
+
+DODANO V 2.24-cursor
+--------------------
+- Po gumbu Minimax (DDV-O): forma plačilnega naloga =
+  polje 51 − preplačilo eDavki konto 62 (npr. 1000 − 50 = 950).
+- Potrdi in prepiši → znesek za plačilo v odložišče; 62 se zapomni na firmo.
+- Prilepi 62 iz odložišča (znesek, vrstica eKartice ali diagnostic JSON).
+
+DODANO V 2.23-cursor
+--------------------
+- DDV-O: ločena vrstica gumbov; zeleni »Minimax« = glavni tisk (API uskladitev,
+  PDF/XML, znesek virmana 51 v odložišče).
+- DDV-O preklop JSON / JSON + Minimax (primerjava polj po listinah v API).
+- Konto: polna Minimax šifra (4170, ne 417); preverjanje ob shranjevanju in API.
+- Opombe PR: osnove po stopnji (DDV ÷ stopnja) + KPR neto.
+- Chrome v1.3.9: paketek z vsemi kombinacijami + preklop Osnove/DDV/Vse;
+  sprožilni URL brez pr_id (brez Sistemske napake pred preklopom firme).
+
+DODANO V 2.22-cursor
+--------------------
+- Na vrhu je filter obdobja: mesec ali razpon (jan-mar … jan-dec) / leto,
+  puščici ‹ ›, Datum od/do — enako kot v Fakturiranju.
+- Filter gleda datum P4 v vrstici (znotraj obdobja). Velja za IR/PR, DDV-O,
+  JSON, Minimax API in izvoz.
+- Pri večmesečnih podatkih se privzeto odpre zadnji mesec; »Vsa obdobja« pokaže vse.
+
+DODANO V 2.21-cursor
+--------------------
+- Osnova za Chrome paketek / odpiranje PR-osnutka v prijavljenem Chromu.
+
+DODANO V 2.20-cursor
+--------------------
+- Strukturiran dnevnik KIRKPR_studio.log (API predpreverjanje in oddaja).
+- Meni Datoteka → Nastavitve poti… za EvidencaFirm, TROPS in Minimax settings.
+- Gumb »Ponovi NAPAKA« ponovno predpreveri in odda neuspešne vrstice.
+- Po API oddaji se shrani JSON povzetek v mapo API_oddaje (brez gesel).
+- CLI: --validate, --dry-run, --summary-json, --log-level.
+- Zaganjalnik: Zaženi_KIRKPR_Minimax_cursor.bat
+- Kratek opis: README_CURSOR.md
+
+DODANO V 2.19
+-------------
+- Gumb »QUICK PDF → izbrani PR« prenese PDF iz izvornega QUICK M.B. IR in ga
+  prek Minimax API neposredno doda na izbrani KLUG PR, tudi če je ta potrjen.
+- Pred zapisom pokaže izvorni račun, ciljni ReceivedInvoiceId in status ter
+  zahteva potrditev; po zapisu ponovno preveri seznam priponk.
+- Priponke z enakim imenom se ne podvajajo. Ločeni gumb »Shrani QUICK PDF…«
+  še naprej omogoča shranjevanje PDF na disk.
+
+DODANO V 2.18
+-------------
+- Iskanje izvornega IR QUICK M.B. poleg kupca in bruto zneska preveri tudi
+  datum transakcije, zato pravilno loči enake mesečne račune.
+- Številka izdanega računa se sestavi iz leta in API polja InvoiceNumber,
+  npr. 2026-411 in 2026-371; nato se preneseta PDF/XML priponki tega računa.
+
+DODANO V 2.17
+-------------
+- Pri iskanju organizacije QUICK M.B. ima prednost natančno produkcijsko ime;
+  organizacija z oznako (TEST) je izločena.
+- Gumbi priponk so jasno ločeni: KLUG PR prek API, lokalna datoteka in
+  izvorni QUICK M.B. IR PDF prek API.
+
+DODANO V 2.16
+-------------
+- »QUICK M.B. → KLUG PDF (API)« ne sprašuje več za mapo.
+- PDF pridobi neposredno prek Minimax API in ga samodejno shrani v dinamično
+  mapo KLUG/obdobje/Priponke_API/listina_QUICK_MB.
+- Okno za izbiro datoteke uporablja samo ločeni ročni gumb »Iz mape…«.
+
+DODANO V 2.15
+-------------
+- Visoki panel povezave je privzeto strnjen; odpre ga gumb »Povezava / nastavitve«.
+- »Iz mape…« kopira lokalno priponko v dinamično mapo izbranega podjetja in PR.
+- »QUICK M.B. IR prek API« poišče organizacijo QUICK M.B., enoličen izdani račun
+  za KLUG po kupcu in znesku ter prenese njegovo API priponko/PDF.
+- Če organizacija ni dostopna ali ujemanje ni enolično, se postopek varno ustavi.
+- Minimax – odpiranje podjetij v1.3.9 je ločena razširitev za Chrome.
+- Različici sta ločeni, ker se program in razširitev posodabljata neodvisno.
+
+AKTIVNA MAPA
+------------
+D:\PISARNA\Python\KirKpr_convert_cursor
+
+Program nima trdo kodiranih poti. Jedro, XSD-shemo in nastavitveno datoteko
+vedno poišče v isti mapi, v kateri je convert_KIrKpr_to_minimax.py.
+Korensko mapo TROPS in register podjetij lahko spremenite v
+Datoteka → Nastavitve poti…
+
+ZAGON
+-----
+1. Vse datoteke iz ZIP-a razširite v isto mapo.
+2. Dvokliknite Zaženi_KIRKPR_Minimax_cursor.bat.
+3. Kliknite »Odpri podatke« in izberite ZIP, JSON, XML ali CSV.
+
+Na levi sta drevo podjetij iz EvidenceFirm in drevesna navigacija po sklopih:
+Izdani računi, Prejeti računi, DDV-O, Minimax API in XML/ZIP izvoz.
+Levi panel se odpre s širino 360 pik in ga ni mogoče stisniti pod 300 pik.
+Če ga želite kadar koli povrniti, pritisnite Ctrl+B ali izberite
+Datoteka -> Prikaži levi panel.
+
+VEČ PODJETIJ IN DINAMIČNE MAPE
+------------------------------
+- Podjetja se berejo iz:
+      D:\PISARNA\Python\EvidencaFirm\data\firme_evidenca.json
+- V levem drevesu poiščite in izberite podjetje. Prikazani so Zšt, kratko ime
+  in Minimax Org_ID. Ob odprtju podatkov program podjetje prepozna tudi po
+  davčni številki ali po Zšt v poti vhodne datoteke.
+- Podjetja so privzeto številčno razvrščena po Zšt. S klikom na glavo Zšt,
+  Podjetje ali Org_ID preklopite naraščajoče oziroma padajoče sortiranje.
+- Izbira podjetja določi njegov Org_ID za Minimax API. Program pred oddajo
+  prepreči pošiljanje, če povezana organizacija ne ustreza izbranemu podjetju.
+- Konti, pravila dobaviteljev, nastavitvi »Samoobdavčitev« in »DDV se odbija«,
+  zadnja datoteka, API sled in šifrant kontov se hranijo ločeno za vsako podjetje.
+- Delovne kopije in izvozi se dinamično shranjujejo v:
+      D:\TROPS\<Zšt>\DDV\KIRKPR_Minimax\<obdobje>\Delovne_kopije
+      D:\TROPS\<Zšt>\DDV\KIRKPR_Minimax\<obdobje>\Minimax_izvoz
+
+Če manjka knjižnica lxml, jo namestite v ukazni vrstici:
+    py -m pip install -r requirements_KIrKpr_to_minimax.txt
+
+Zaganjalnik najprej poišče dejansko namestitev Python in preveri tkinter ter
+lxml. Če se forma ne odpre, je opis napake shranjen v KIRKPR_zagon_napaka.log.
+
+PREJETE RAČUNE (PR) IN KONTA
+-----------------------------
+- Privzeti stroškovni konto je 4190 (storitve).
+- V zavihku »Prejeti računi (PR)« izberite eno ali več vrstic.
+- Konto mora biti polna Minimax šifra (vsaj 4 mesta): 4170, ne 417. Ob povezavi
+  z API se šifra preveri tudi proti šifrantu organizacije.
+- Polje Konto je tudi filter šifranta: vpišite del šifre, na primer »417«, da
+  se pokažejo kandidati (npr. 4170); shrani se lahko samo polna šifra.
+  Iskanje ni občutljivo na velike črke ali šumnike (»stroski« najde »Stroški«).
+  Filter deluje tudi v podrobnih obrazcih za popravek IR in PR. Prazen vnos
+  oziroma puščica pri že izbranem polnem kontu ponovno pokaže ves šifrant.
+- Po povezavi z API se konto in naziv prebereta iz šifranta izbrane Minimax
+  organizacije, npr. »4000 — Stroški materiala«. V tabeli sta prikazana v
+  ločenih stolpcih »Konto« in »Naziv konta«.
+- Kliknite »Uporabi za izbrane«.
+- Dvojni klik na posamezni PR, tipka Enter ali gumb »Odpri račun / popravi«
+  odpre razširjeno podrobno formo. V istem oknu lahko spremenite konto, opis,
+  datume, partnerja, davčno številko, vse zneske KPR ter potrditveni polji
+  »Samoobdavčitev« in »DDV se odbija«. Podatki se prenesejo v delovno kopijo,
+  Minimax XML oziroma API, izvorna datoteka pa ostane nespremenjena.
+- Zneskovna polja v podrobni formi so prikazana in jih lahko vnašate v
+  slovenskem zapisu, na primer 1.111,11. Program jih pri shranjevanju pretvori
+  v notranji zapis, ki ga potrebujeta XML in API.
+- Stalno vidni gumb »Shrani trenutni zapis« v podrobni formi spremembe samo
+  začasno doda v delovno stanje programa; datoteke še ne zapiše. Tako lahko
+  zaporedoma popravite več PR in IR.
+- Ko so vsi začasni popravki pripravljeni, kliknite zgornji gumb »Shrani delovno
+  kopijo«. Program pokaže skupni seznam popravkov in jih zapiše šele po potrditvi.
+  Če potrditev zavrnete, popravki ostanejo v programu in jih lahko še dopolnite.
+- Samoobdavčitev se ob prvem branju samodejno zazna iz polj KPR 9, 10 in 11,
+  nato jo lahko za posamezni račun vključite ali izključite v podrobni formi.
+- Za skupinsko nastavitev odbitka izberite enega ali več PR in kliknite
+  »DDV se odbija« ali »DDV brez odbitka«.
+- Če »DDV se odbija« ni označeno, se DDV vključi v strošek izbranega konta,
+  v Minimax DDV-del se zapiše kot neodbitni DDV in se ne všteva v odbitni DDV
+  polj 41, 42, 42a oziroma 43 kontrolnega DDV-O.
+- Pri samoobdavčitvi program obračunani DDV knjiži v dobro konta 260xx. Če se
+  DDV odbija, ga hkrati knjiži v breme konta 160xx; sicer se prišteje strošku.
+- Če je vključeno »Zapomni si za dobavitelja«, bo program enak konto predlagal
+  tudi pri njegovih prihodnjih računih.
+- Kliknite »Shrani vse konte«, da se izjeme trajno zapišejo.
+  Skupaj s konti se trajno shranita tudi obe nastavitvi DDV posameznih računov.
+
+Nastavitve se shranijo v:
+    convert_KIrKpr_to_minimax_config.json
+
+UREJANJE BREZ SPREMINJANJA IZVORA
+--------------------------------
+- Za ločeni primerjalni pregled izberite IR/PR in kliknite »Uredi podatke«.
+- Obrazec vzporedno pokaže izvorno vrednost (samo za branje) in delovno
+  vrednost, ki se uporabi za Minimax XML oziroma API.
+- Stolpec »KIR/KPR« pokaže natančno mesto v evidenci, na primer »KPR P11«.
+  Stolpec »DDV-O« pokaže polje obrazca, v katerega se podatek neposredno
+  sešteva, na primer »32a« ali »41«; znak »—« pomeni, da neposrednega polja ni.
+- Urejati je mogoče številko listine, datume, partnerja, državo, davčno
+  številko in posamezna polja zneskov KIR/KPR. Program datume in zneske preveri.
+- Gumb »Shrani delovno kopijo« pred zapisom pokaže začasne popravke in zahteva
+  potrditev. Nato zapiše novo datoteko z dodatkom _MINIMAX_UREJENO.json.
+  Izvorni ZIP/JSON/XML/CSV se nikoli ne prepiše.
+- Delovno kopijo lahko pozneje ponovno odprete; ohrani popravljene podatke,
+  konte, opise ter nastavitvi samoobdavčitve in odbitka DDV.
+
+IZDANI RAČUNI (IR) IN KONTA
+---------------------------
+- Privzeti prihodkovni konto je 7601.
+- V zavihku »Izdani računi (IR)« lahko izberete eno ali več vrstic in jim
+  skupinsko spremenite konto prihodka.
+- Dvojni klik na IR, tipka Enter ali gumb »Odpri račun / popravi« odpre
+  razširjeno podrobno formo za konto, opis, datume, kupca in vse zneske KIR.
+- »Shrani trenutni zapis« začasno doda popravek IR v skupni seznam; generalni
+  zapis vseh pripravljenih IR/PR opravite z zgornjim gumbom »Shrani delovno
+  kopijo«.
+- Možnost »Zapomni si za kupca« enak konto uporabi tudi pri prihodnjih računih
+  istega kupca.
+- Rumena KIR vrstica samoobdavčitve se ne izvozi kot izdani račun; program to
+  jasno prikaže tudi v formi za popravek.
+
+OBRAZEC DDV-O IN KONTROLNI PODATEK
+---------------------------------
+- Zavihek »DDV-O« se napolni samodejno takoj po odprtju KIR/KPR.
+- Preklopna gumba »JSON« in »JSON + Minimax«: JSON pokaže vsa polja iz KIR/KPR;
+  JSON+Minimax doda stolpec Minimax (samo listine, ki obstajajo v API) in razliko.
+- Gumb »Minimax« (zeleni) je glavni tisk: uskladi z API, izvozi PDF/XML in pripravi
+  znesek virmana (polje 51). Predogled / Izvozi PDF sta ločena gumba v isti vrstici.
+- Program po FURS preslikavi sešteje polja evidenc KIR/KPR v polja DDV-O ter
+  vrednosti obrazca zaokroži na cele evre.
+- Na vrhu so prikazani obračunani DDV, odbitni DDV in rezultat: polje 51
+  (obveznost) ali polje 52 (presežek).
+- Zelena kontrolna vrstica preveri enačbo:
+      obračunani DDV - odbitni DDV - polje 51 + polje 52 = 0 EUR
+- Gumb »Kopiraj kontrolni podatek« kopira kratek povzetek v odložišče.
+- Gumb »Shrani kontrolni pregled…« shrani vsa polja, vire seštevkov in
+  kontrolno razliko v besedilno datoteko.
+- Gumb »Izvozi PDF…« = tisk v PDF / izvoz v TROPS\{Zšt}\DDV\
+  (npr. DDV O 2026 Q1.pdf + DDV_O_2026-Q1.xml). Obdobje z vrha (jan-mar …).
+- PDF prikaz = uradni eDavki XSLT DDV_O_11.7-display-sl.xslt
+  (isti kot hslsig:DisplayTransformDigest v eDavkih; lokalno v ddvo_transforms/).
+- »Predogled« odpre isti PDF; »Shrani … drugam…« = druga pot.
+- Kontakt: config ddvo_contact_name / ddvo_contact_phone.
+- »Preračunaj« osveži obrazec iz trenutno odprtih evidenc.
+- Vstopni DDV se v polja 41, 42, 42a oziroma 43 všteva samo pri računih, pri
+  katerih je označeno »DDV se odbija«.
+- V obrazcu PR: če je samoobdavčitev v KPR (P9–P11) ali shranjena za dobavitelja,
+  program samodejno ponudi kljukici »Samoobdavčitev« in »DDV se odbija«.
+  Ob »Zapomni si … za dobavitelja« se poleg konta shranita tudi ti dve nastavitvi.
+
+NEPOSREDNA ODDAJA V MINIMAX API
+-------------------------------
+1. V levem drevesu izberite »Minimax -> API povezava in oddaja«.
+2. Program sam uporabi obstoječo datoteko nastavitev Davčne blagajne:
+       D:\PISARNA\Python\DavčnaBlagajna\blagajna_minimax_settings.json
+   Gesla in client secret se ne kopirajo v nastavitve tega pretvornika.
+3. Organizacije ni treba izbirati v API-zavihku. Ciljni Org_ID vedno določa
+   podjetje, izbrano v levem seznamu. Kliknite »Poveži z izbranim podjetjem«.
+   Ob povezavi program naloži tudi šifrant kontov (šifra + naziv) in ga shrani
+   v predpomnilnik tega podjetja, da so nazivi vidni tudi brez nove povezave.
+4. Za neposredni skupinski prenos uporabite enega od gumbov:
+   - »Prenesi vse IR« za izdane račune,
+   - »Prenesi vse PR« za prejete račune,
+   - »Prenesi IR + PR« za obe knjigi skupaj.
+   Program se po potrebi sam poveže, izbere še neoddane račune in opravi
+   predpreverjanje. Pred dejansko oddajo vedno prikaže potrditveno okno.
+   Nad gumbi najprej izberite način:
+   - »Temeljnica + DDV« za popolno dvostavno knjižbo skupaj z DDV evidenco,
+   - »Izdani/Prejeti račun — osnutek« za ustvarjanje dokumentov v modulu
+     Izdani oziroma Prejeti računi.
+   Nad tabelo lahko prikaz omejite z gumbi »Vsi«, »Samo IR« in »Samo PR«.
+   Zadnji izbrani prikaz se shrani posebej za podjetje.
+5. Posamezne račune lahko še vedno ročno označite v tabeli in kliknete
+   »Predpreveri izbrane«. Program brez vpisa v Minimax preveri:
+   Minimax preveri:
+   - obstoj partnerjev po davčni številki,
+   - vse uporabljene konte,
+   - vrste temeljnic IR/PR,
+   - DDV stopnje 22 %, 9,5 %, 5 %, oproščeno in neobdavčeno,
+   - dvostavno ravnotežje vsake temeljnice.
+6. Oddati je mogoče samo vrstice s stanjem »OK«. Kliknite »Oddaj izbrane v
+   Minimax« in še enkrat potrdite organizacijo, število računov ter stanje.
+
+V načinu »Temeljnica + DDV« program najprej ustvari knjižbene vrstice, nato
+prek namenskega endpointa »journals/{id}/vat« doda DDV-vrstico in s ponovnim
+branjem preveri, da je bila res zapisana. Zato se prenesejo tudi popravljeni
+konti iz zavihkov IR/PR. Pri stanju »P - potrjeno« se temeljnica najprej ustvari
+kot osnutek, dopolni z DDV in šele nato potrdi. Če DDV-korak ne uspe, program
+jasno navede ID že ustvarjene temeljnice in je zaradi varnosti ne briše sam.
+
+V načinu »Izdani/Prejeti račun — osnutek« program uporablja endpointa
+»issuedinvoices« in »receivedinvoices«. V »Nastavitve DDV in računov« lahko za
+vsako podjetje določite ID številčenja IR/PR, artikel za izdane račune, rok
+plačila ter vrsto obračuna DDV. Prazno številčenje pomeni, da Minimax uporabi
+svoje privzeto številčenje. Minimax na vsaki vrstici IR zahteva obstoječi
+artikel. Program po povezavi naloži šifrant in sam predlaga artikel tipa
+Storitev, prednostno s prihodkovnim kontom 7601; uporabnik ga lahko spremeni.
+IR dobi artikel, vrstice z zneski in DDV stopnjami, nato ga v Minimaxu
+pregledate in izdate. API za PR ob ustvarjanju sprejme glavo, partnerja, datume
+in skupni znesek, ne pa odhodkovnih/DDV vrstic. Program v opombo PR-osnutka
+zapiše predlagani konto odhodka, konto dobavitelja, osnovo, odbitni DDV in
+samoobdavčitev.
+
+V »Nastavitve DDV in računov« je zato na voljo možnost:
+    PR: ustvari tudi ločeno temeljnico + DDV (oba ostaneta osnutka)
+Ko je vključena, program najprej vedno ustvari PR-osnutek, nato še ločeno
+osnutno temeljnico z izbranim stroškovnim kontom, obveznostjo do dobavitelja in
+DDV-vrstico. V opisu obeh je referenca na PR in opozorilo »NE POTRDI OBEH«.
+Minimax API teh dveh dokumentov ne poveže. V Minimaxu zato dokončajte in
+potrdite samo PR ali samo spremljevalno temeljnico. Potrditev obeh bi podvojila
+obveznost do dobavitelja. Možnost je zaradi varnosti privzeto izključena in se
+shrani posebej za vsako podjetje.
+
+Pri običajnem izdanem računu program ne pošilja vrste obračuna OD na sami
+vrstici, ker jo Minimax določi iz artikla in DDV-stopnje. Izrecna vrsta se pošlje
+samo pri posebni obravnavi (npr. OSS, prodaja na daljavo ali gradbeni posel).
+Merska enota se prebere iz izbranega artikla, polje Value pa se ne pošilja, ker
+je v API modelu samo za branje. Celotno API napako oziroma Location odprete z
+gumbom »Prikaži cel rezultat«; odgovor lahko tudi kopirate v odložišče.
+
+Pri uspešno oddanem PR-osnutku dvojni klik na vrstico ali gumb »Odpri PR-osnutek
++ vnesi odhodek« odpre uporabnikov prijavljeni Google Chrome. Program uporabi
+točen ReceivedInvoiceId iz odgovora oziroma Location API, Org_ID izbranega
+podjetja, konto odhodka iz KPR in osnove 22% / 9,5% / 5% (osnova = DDV ÷ stopnja).
+Razširitev preklopi podjetje, odpre PR, klikne Uredi, največ enkrat Nov odhodek,
+vnese konto, poskusi vnesti osnove in prikaže plavajoči »KIR/KPR paketek« z
+gumbi Kopiraj (več slotov). Brskalnik ostane odprt. Pred odpiranjem program
+vpraša: »Da« pomeni tudi samodejni klik Potrdi, »Ne« pripravi odhodek/osnove za
+ročni pregled, »Prekliči« pa ne odpre računa. Če je na strani več gumbov Potrdi,
+razširitev zaradi varnosti ne klikne nobenega.
+
+Potrebna je razširitev »Minimax – odpiranje podjetij« v1.3.9 ali novejša iz mape:
+    D:\PISARNA\Python\Chrome_add\AktivniZavihek_WebApp
+    (ali D:\PISARNA\Python\Chrome_add\Minimax_Odpiranje_Podjetij — ista vsebina)
+Po posodobitvi na chrome://extensions kliknite Reload. Razširitev ima dovoljenje
+samo za moj.minimax.si, ne bere ali izvaža piškotkov in gesel.
+
+Gumb »Zadnji potrjeni PR (API)« prebere zadnji potrjeni PR izbranega podjetja,
+pokaže njegov dejanski ReceivedInvoiceId in ga kopira v odložišče. Naslednjega
+osnutka program nikoli ne ugiba kot zadnji ID + 1; za novi osnutek uporabi ID iz
+njegovega lastnega odgovora API.
+
+STATUS RAČUNOV V PREGLEDU IR IN PR
+----------------------------------
+V zavihkih »Izdani računi (IR)« in »Prejeti računi (PR)« je stolpec »Status«.
+Ko se povežete z Minimax API, program sam prebere račune iz obdobja odprtega
+KIR/KPR in prikaže:
+    - Osnutek  — Minimax status O,
+    - Potrjen  — Minimax status P,
+    - Ni najden — listina v izbranem podjetju/obdobju ni bila najdena,
+    - Poveži API oziroma Ni preverjeno — status še ni bil prebran.
+
+Za račune, ki jih je ustvaril ta program, se status prednostno preveri po
+točnem IssuedInvoiceId oziroma ReceivedInvoiceId iz odgovora API. Pri starejših
+računih brez shranjenega ID-ja se uporabi DocumentReference/listina. Gumb
+»Osveži statuse IR/PR« na zavihku Minimax API stanje ponovno prebere, zato lahko
+po potrditvi v Minimaxu takoj preverite prehod iz »Osnutek« v »Potrjen«.
+
+Ostali gumbi za preverjanje ločene Playwright seje uporabljajo vgrajeni modul
+``kirkpr_minimax_pw`` in skupni Chromium profil:
+    %LOCALAPPDATA%\MinimaxBlagajna\PlaywrightProfile
+Profil je skupen za vsa podjetja, do katerih ima isti Minimax uporabnik dostop.
+Piškotki in prijavna seja ostanejo samo v Chromium profilu; program jih ne bere,
+ne izvaža in ne zapisuje v svojo konfiguracijo.
+
+ENKRATNA PRIJAVA IN UPORABA ZA VSA PODJETJA
+-------------------------------------------
+1. V levem seznamu izberite poljubno podjetje in odprite zavihek Minimax API.
+2. Kliknite »Prijava / obnovi sejo…«.
+3. V vidnem Playwright oknu se enkrat prijavite v Minimax. Po uspešni prijavi
+   lahko okno zaprete; seja ostane shranjena v skupnem profilu.
+4. Kliknite »Preveri sejo«. Prikazati se mora »Seja: PRIJAVLJENA«.
+5. V levem seznamu izberite katero koli podjetje in kliknite »Odpri izbrano
+   podjetje«. Program odpre ZacetekOrganizacije.aspx, poišče podjetje po imenu ali
+   Org_ID in ga izbere. Isto se samodejno izvede pred odpiranjem PR-osnutka.
+
+Za vsako podjetje potrebujete samo:
+    - natančno ime podjetja v Minimaxu,
+    - Minimax Org_ID,
+    - ZŠt oziroma ključ v EvidenciFirm.
+Te podatke vpišite v EvidencaFirm; nikoli ne pošiljajte cookies, gesel, certifikatov
+ali sejnih žetonov. Če izbira podjetja ne uspe, kliknite »Varna diagnostika…«.
+Nastali JSON vsebuje samo vidna besedila in oznake organizacijskega seznama, ne pa
+cookies, gesel, VIEWSTATE, skritih obrazčnih polj ali drugih prijavnih podatkov.
+
+Če Playwright/Chromium manjka, ga namestite z:
+    py -3.10 -m pip install playwright
+    py -3.10 -m playwright install chromium
+
+Vsaka knjižbena vrstica API vsebuje obvezno denarno enoto EUR, pridobljeno iz
+šifranta valut izbrane Minimax organizacije. Napake API so v stolpcu »Rezultat /
+napaka« prikazane kot čisto besedilo brez HTML oznak.
+
+Program si za vsak uspešno oddani račun shrani OrganisationId, datum/uro in
+Location odgovora API. Ob ponovnem odprtju ga označi »ODDANO«, da ga ne bi
+nehote poslali dvakrat. Pred dejansko oddajo je vedno prikazano potrditveno
+okno. Če partner ali konto manjka v šifrantu izbrane organizacije, se oddaja
+tega računa ne omogoči in razlog je prikazan v zadnjem stolpcu.
+
+Za Minimax API so potrebni client_id, client_secret ter uporabniško ime in
+geslo zunanje aplikacije v skupni nastavitveni datoteki Davčne blagajne.
+
+POMNJENJE ZADNJE SEJE
+---------------------
+Program za vsako podjetje samodejno shrani zadnjo vhodno datoteko in direktorij,
+delovno kopijo, izhodno mapo in ZIP, zadnji uporabljeni konto ter rezultate API
+oddaje. Skupno shrani aktivni zavihek, velikost okna in zadnje dejanje z datumom
+in uro, ne pa OAuth gesel. Ob naslednjem zagonu ponovno odpre zadnjo datoteko. To lahko
+izključite v meniju Datoteka -> Ob zagonu ponovno odpri zadnjo datoteko.
+Zadnjo datoteko lahko kadar koli odprete tudi s Ctrl+L.
+
+Pod vrstico »Obdobje« je vrstica »Seje« (SQLite: kirkpr_sessions.sqlite3):
+- combobox seznama sej (firma + obdobje + datoteka),
+- Odpri sejo / Shrani sejo / Uredi / Briši.
+Shrani sejo zapiše delovno kopijo in meta-podatke; Briši odstrani le vnos
+s seznama (datoteke ostanejo). Stare JSON seje iz configa se ob prvem zagonu
+uvozijo v SQLite.
+
+IZVOZ
+-----
+Kliknite »Izvozi XML + ZIP«. Pri izbranem podjetju program uporabi njegovo
+dinamično mapo Minimax_izvoz; brez izbranega podjetja vpraša za ciljno mapo.
+Program ustvari:
+- Minimax_izdani_racuni_....xml
+- Minimax_prejeti_racuni_....xml
+- Minimax_pregled_pretvorbe_....txt
+- Minimax_XML_....zip
+
+Pred shranjevanjem se preveri dvostavno ravnotežje vseh temeljnic. Če je v
+mapi miniMAXUvozKnjigovodstvo.xsd, se oba XML-ja preverita še z uradno Minimax
+shemo. KIR vrstice samoobdavčitve, ki imajo pripadajoči PR, se ne ustvarijo kot
+lažni izdani računi; program jih označi v rumeni barvi in DDV obravnava v PR.
+Prejeti račun samoobdavčitve vsebuje izhodni DDV 260xx ter, ob dovoljenem
+odbitku, še vstopni DDV 160xx, zato je temeljnica dvostavno uravnotežena.
+
+PRIDOBIVANJE IZ ZIP (PRAVILA)
+-----------------------------
+Vhod je ZIP, JSON, XML ali CSV. Znotraj ZIP-a so dovoljeni člani:
+JSON (FURS DDV_KIR_KPR), XML (FURS DDV_KIR_KPR) in CSV (P2… + KIR/KPR).
+
+1. Program prebere vse .json / .xml / .csv člane v ZIP-u.
+2. Če je nastavljen prednostni format (JSON/XML/CSV) in tak član obstaja,
+   uporabi njega (oziroma združi člane tega formata).
+3. Sicer izbere najpopolnejši vir: več vrstic, obe knjigi, nato JSON > XML > CSV.
+4. Če primarnemu viru manjka KIR ali KPR, ga dopolni iz drugega člana ZIP-a
+   (npr. ločeni KIR.csv + KPR.csv).
+5. Če zunanji ZIP nima uporabnih podatkov, odpre ugnezdeni ZIP (1 nivo).
+6. Če ni uporabnega KIR/KPR, javi napako s seznamom datotek v ZIP-u.
+
+Prenos pridobljenih podatkov v Minimax: Minimax API ali datoteka XML za uvoz.
+
+CSV
+---
+CSV lahko vsebuje KIR in KPR skupaj (stolpec KNJIGA z vrednostjo KIR/PR) ali v
+ločenih datotekah znotraj ZIP-a. Program prepozna tudi imena KIR/IR in KPR/PR,
+ločila ; , tabulator ali |, kodiranje UTF-8/Windows-1250 ter zneske 1.234,56.
+Podprt je tudi FURS eDavki CSV brez imen stolpcev (prva vrstica = davčna +
+OBDOBJE_OD/DO, nato vrstice KIR;… / KPR;…).
+
+UKAZNA VRSTICA (IZBIRNO)
+------------------------
+    py convert_KIrKpr_to_minimax.py vhod.zip --output C:\Izhod
+    py convert_KIrKpr_to_minimax.py vhod.zip --validate
+    py convert_KIrKpr_to_minimax.py vhod.zip --validate --summary-json povzetek.json
+    py convert_KIrKpr_to_minimax.py vhod.zip --dry-run
+
+V načinu --output se uporabijo nazadnje shranjeni konti in pravila dobaviteljev.
+--validate preveri podatke in DDV-O kontrolo brez izvoza.
+--dry-run izvozi v začasno mapo, preveri XSD in datotek ne ohrani.
+DODANO V 2.13
+-------------
+- Tabela Minimax API vsebuje ločen stolpec »Status računa«: Osnutek, Potrjen,
+  Ni najden, Ni preverjeno ali Poveži API.
+- Gumb »Prenesi priponko izbranega PR« uporabi dejanski ReceivedInvoiceId in
+  prenese vse priponke izbranega prejetega računa v izbrano mapo.
+- Za PR dobavitelja QUICK M.B. tako prenese priponko, ki je priložena KLUG-ovemu
+  prejetemu računu. Neposreden dostop do njihovega IR zahteva API dostop do
+  organizacije QUICK M.B.

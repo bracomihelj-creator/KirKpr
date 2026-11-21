@@ -1,0 +1,19 @@
+---
+description: KPR/PR P7DS — predpona + davčna; pred oddajo javi manjkajoči ID
+alwaysApply: true
+---
+
+# PR / KPR polje P7DS (ID za DDV)
+
+P7DS = predpona države + davčna (`SI14720078`, `IE6364992H`). To ni šifra partnerja ali listina (`6KKD1TCL0001`).
+
+- SI: 8 številk → `SI` + davčna
+- EU z ID: obdrži predpono + ID
+- Tretja država brez ID za DDV → `CC***` (ZDA = `US***`)
+- `Code` / `RegistrationNumber` / listina niso davčna
+
+Pred oddajo javi **kritično** `KPR_P7DS`, če ni pravega P7DS — tudi če `ensure_party_ds` predlaga `US***`. Ne skrij napake s tihim vnosom.
+
+eDavki: »Za prejete račune je vrednost v polju 'P7DS' obvezna.«
+
+Uporabi `p7ds_precheck` / `p7ds_is_real_vat` v `kirkpr_minimax_core.py`.
