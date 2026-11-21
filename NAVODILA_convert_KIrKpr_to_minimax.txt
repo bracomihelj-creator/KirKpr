@@ -1,7 +1,7 @@
 KIR/KPR -> MINIMAX STUDIO (CURSOR)
 =================================
 
-Različica programa: 4.0.3. Zahtevana različica Chrome dodatka: 1.4.19.
+Različica programa: 4.0.3 (Tk). WebView2 vmesnik: 5.0.01. Zahtevana različica Chrome dodatka: 1.4.19.
 To je Cursor izdaja v mapi D:\PISARNA\Python\KirKpr (prej KirKpr_convert_cursor).
 
 Program ob zagonu sam zabeleži uporabljeno različico v
@@ -10,7 +10,17 @@ Ob vsaki spremembi kode se APP_VERSION zviša (pravilo .cursor/rules/version-bum
 
 RAZLIČICE
 ---------
-- KIR/KPR → Minimax Studio v4.0.3 je Cursor izdaja v tej mapi.
+- KIR/KPR → Minimax Studio v5.0.01 je WebView2 vmesnik (host_webview.py).
+- Tk vmesnik v4.0.3 ostane v mapi kot rezerva (KirKpr_V4.0.3.pyw), dokler 5.x ne pokrije vseh zaslonov.
+
+DODANO V 5.0.01
+---------------
+- Nov vmesnik v slogu Trops Studio 5 (temna stranska vrstica, kartice, tabele) na WebView2.
+  Zaganjalnik: KirKpr_V5.0.01.pyw oziroma bližnjica KirKpr na namizju.
+  Pokriti so: podjetje, obdobje, odpiranje KIR/KPR, IR, PR, kontrolni DDV-O in nastavitve poti.
+  Še niso preneseni: urejevalnika IR/PR, e-poštni urejevalnik, knjige JSON/API, oddaja v Minimax
+  in Playwright/Chrome avtomatizacija. Za te zaslone uporabite KirKpr_V4.0.3.pyw.
+  Izračuni, DDV, XML in API oddaja niso spremenjeni.
 
 DODANO V 4.0.3
 --------------
@@ -1364,9 +1374,9 @@ Datoteka → Nastavitve poti…
 ZAGON
 -----
 1. Vse datoteke iz ZIP-a razširite v isto mapo.
-2. Dvokliknite bližnjico KirKpr na namizju ali KirKpr_V4.0.3.pyw v mapi programa.
-   Program se odpre brez črnega okna konzole. Še vedno delujeta tudi
-   Zaženi_KIRKPR_Minimax_cursor.bat in Zaženi_KIRKPR_Minimax.bat.
+2. Dvokliknite bližnjico KirKpr na namizju ali KirKpr_V5.0.01.pyw (WebView2, brez konzole).
+   Stari vmesnik Tk: KirKpr_V4.0.3.pyw. Še vedno delujeta tudi
+   Zaženi_KIRKPR_Minimax_cursor.bat in Zaženi_KIRKPR_Minimax.bat (Tk).
 3. Kliknite »Odpri podatke« in izberite ZIP, JSON, XML ali CSV.
 
 Na levi sta drevo podjetij iz EvidenceFirm in drevesna navigacija po sklopih:

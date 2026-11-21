@@ -1,16 +1,16 @@
-# KIR/KPR → Minimax Studio (KirKpr) 4.0.0
+# KIR/KPR → Minimax Studio (KirKpr) 5.0.01
 
 Namizna aplikacija za uvoz evidenc **KIR/KPR**, pregled in pretvorbo v Minimax, obrazec **DDV-O** (XML za eDavke, PDF, virman UPN QR, e-pošta) in oddajo v **Minimax**.
 
 * **Okolje:** Windows 10/11, Python 3.10+, knjižnice iz `requirements_KIrKpr_to_minimax.txt`.
-* **Vmesnik:** klasično okno Tkinter (`kirkpr_gui_style.py`).
+* **Vmesnik:** WebView2 (KirKpr_V5.0.01.pyw); rezervni Tk 4.0.3 (KirKpr_V4.0.3.pyw).
 * **Mapa:** `D:\PISARNA\Python\KirKpr` (prej `KirKpr_convert_cursor`).
 
 ## Zagon
 
-1. Dvokliknite bližnjico **KirKpr** na namizju ali `KirKpr_V4.0.3.pyw` (brez konzole).
-2. ali: `Zaženi_KIRKPR_Minimax_cursor.bat`
-3. ali: `py convert_KIrKpr_to_minimax.py`
+1. Dvokliknite bližnjico **KirKpr** na namizju ali KirKpr_V5.0.01.pyw (WebView2, brez konzole).
+2. ali stari Tk vmesnik: KirKpr_V4.0.3.pyw
+3. ali: Zaženi_KIRKPR_Minimax_cursor.bat / py convert_KIrKpr_to_minimax.py (Tk)
 
 Odvisnosti:
 

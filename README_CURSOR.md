@@ -1,12 +1,12 @@
-# KIR/KPR → Minimax Studio — Cursor izdaja (v4.0.3)
+# KIR/KPR → Minimax Studio — Cursor izdaja (v5.0.01)
 
 Program je v mapi `D:\PISARNA\Python\KirKpr` (prej KirKpr_convert_cursor).
 
 ## Zagon
 
-1. Dvokliknite bližnjico **KirKpr** na namizju ali `KirKpr_V4.0.3.pyw` (brez konzole).
-2. ali: `Zaženi_KIRKPR_Minimax_cursor.bat`
-3. ali: `py convert_KIrKpr_to_minimax.py`
+1. Dvokliknite bližnjico **KirKpr** na namizju ali KirKpr_V5.0.01.pyw (WebView2, brez konzole).
+2. ali stari Tk vmesnik: KirKpr_V4.0.3.pyw
+3. ali: Zaženi_KIRKPR_Minimax_cursor.bat / py convert_KIrKpr_to_minimax.py (Tk)
 
 Odvisnosti (enako kot pri originalu):
 
