@@ -1,4 +1,4 @@
-/* KirKpr 5.0.07 — vmesnik WebView2 (klici HTTP API / pywebview Bridge). */
+/* KirKpr 5.0.08 — vmesnik WebView2 (klici HTTP API / pywebview Bridge). */
 (function () {
   var state = { view: "ir", boot: null, companies: [], selected: {}, editor: null, dataEditor: null, dataField: "", lastExportDir: "", lastExportPath: "", knjigaBook: "IR", knjigaMode: "json", apiFilter: "ALL" };
   var titles = {
@@ -7,6 +7,7 @@
     ddvo: "Obrazec DDV-O",
     knjige: "Knjige IR/PR",
     api: "Minimax API",
+    email: "E-pošta DDV",
     settings: "Nastavitve poti",
     about: "O programu"
   };
@@ -72,7 +73,7 @@
       return;
     }
     state.boot = s;
-    $("brandVer").textContent = s.version || "5.0.07";
+    $("brandVer").textContent = s.version || "5.0.08";
     if (s.theme) document.documentElement.setAttribute("data-theme", s.theme);
     if ($("autoReopenChk")) $("autoReopenChk").checked = !!s.auto_reopen;
     if (s.sessions) renderSessions(s.sessions, s.selected_session_id);
@@ -366,6 +367,9 @@
     if (view === "api") {
       return reloadApi();
     }
+    if (view === "email") {
+      return reloadEmail();
+    }
     if (view === "ddvo") {
       return api("/api/ddvo?q=" + encodeURIComponent(q)).then(function (data) {
         var meta = "Ni naloženih podatkov.";
@@ -398,7 +402,7 @@
     document.querySelectorAll(".page").forEach(function (page) {
       page.classList.toggle("hidden", page.getAttribute("data-page") !== name);
     });
-    $("toolbar").classList.toggle("hidden", name === "settings" || name === "about" || name === "api");
+    $("toolbar").classList.toggle("hidden", name === "settings" || name === "about" || name === "api" || name === "email");
     reloadView().catch(function (e) { toast(e.message, true); });
   }
 
@@ -868,7 +872,7 @@
       else if (name === "knjige") setView("knjige");
       else if (name === "api") setView("api");
       else if (name === "settings") setView("settings");
-      else if (name === "email") setView("about");
+      else if (name === "email") setView("email");
       else if (name === "export-dir") {
         var path = state.lastExportDir || (state.boot && state.boot.paths && state.boot.paths.last_source) || "";
         if (!path) { toast("Ni shranjene izhodne mape.", true); return; }
@@ -1121,6 +1125,113 @@
     runAction("download_supplier_issued_attachment", { id: id }).then(function (s) {
       if (s) { applyState(s); reloadApi(); }
     }).catch(function (e) { toast(e.message, true); });
+  });
+
+
+
+  var emailExtraAttachments = [];
+
+  function emailPayload(extra) {
+    var data = {
+      template_id: $("emailTemplate").value,
+      title: $("emailTitle").value,
+      subject: $("emailSubject").value,
+      body: $("emailBody").value,
+      to: $("emailTo").value,
+      cc: $("emailCc").value,
+      bcc: $("emailBcc").value,
+      from_smtp: $("emailFrom").value,
+      channel: $("emailChannel").value,
+      postscript: $("emailPs").value,
+      konto62: $("emailKonto62").value,
+      vracilo: $("emailVracilo").checked,
+      attach_pdf: $("emailAttachPdf").checked,
+      attach_virman: $("emailAttachVirman").checked,
+      attachments: emailExtraAttachments.slice()
+    };
+    return Object.assign(data, extra || {});
+  }
+
+  function fillEmailForm(data) {
+    if (!data) return;
+    var sel = $("emailTemplate");
+    var current = data.template_id || sel.value;
+    var html = "";
+    (data.templates || []).forEach(function (row) {
+      html += "<option value=\"" + escapeHtml(row.id) + "\">" + escapeHtml(row.title || row.id) + "</option>";
+    });
+    sel.innerHTML = html;
+    if (current) sel.value = current;
+    $("emailTitle").value = data.title || "";
+    $("emailTo").value = data.to || "";
+    $("emailCc").value = data.cc || "";
+    $("emailBcc").value = data.bcc || "";
+    $("emailFrom").value = data.from_smtp || "";
+    $("emailChannel").value = data.channel || "smtp";
+    $("emailSubject").value = data.rendered_subject || data.subject || "";
+    $("emailBody").value = data.rendered_body || data.body || "";
+    $("emailPs").value = data.postscript || "";
+    $("emailKonto62").value = data.konto62 || "";
+    $("emailVracilo").checked = !!data.vracilo;
+    $("emailAttachPdf").checked = data.attach_pdf !== false;
+    $("emailAttachVirman").checked = !!data.attach_virman;
+    $("emailLines").textContent = [data.line1, data.line2].filter(Boolean).join("\n");
+    var files = (data.attachments || []).concat(emailExtraAttachments);
+    $("emailAttachments").textContent = files.length ? ("Priponke:\n" + files.join("\n")) : "Ni samodejnih priponk (najprej izvozite DDV-O / virman).";
+    $("emailMeta").textContent = data.has_data
+      ? ((data.company && data.company.name) || "Stranka") + " · " + (data.period_label || "") + " · obveznost " + (data.obligation || "0,00") + " · plačilo " + (data.payment || "0,00")
+      : "Najprej odprite podatke.";
+  }
+
+  function reloadEmail() {
+    var tid = $("emailTemplate") ? $("emailTemplate").value : "";
+    var konto = $("emailKonto62") ? $("emailKonto62").value : "";
+    var q = "/api/email?template_id=" + encodeURIComponent(tid || "") + "&konto62=" + encodeURIComponent(konto || "");
+    return api(q).then(function (data) {
+      fillEmailForm(data);
+      $("statusLine").textContent = data.has_data ? ("Predloga e-pošte: " + (data.title || data.template_id || "")) : "Ni naloženih podatkov.";
+    });
+  }
+
+  function confirmAndSend(test) {
+    var payload = emailPayload({ test: !!test });
+    act("preview_email_send", payload).then(function (data) {
+      if (data.ok === false) throw new Error(data.msg || data.error || "Predogled ni uspel.");
+      if (!window.confirm(data.prompt)) return null;
+      return runAction("send_email", Object.assign({}, payload, { confirm: true }));
+    }).then(function (s) {
+      if (!s) return;
+      applyState(s);
+    }).catch(function (e) { toast(e.message, true); });
+  }
+
+  $("emailTemplate").addEventListener("change", function () {
+    reloadEmail().catch(function (e) { toast(e.message, true); });
+  });
+  $("emailKonto62").addEventListener("change", function () {
+    reloadEmail().catch(function (e) { toast(e.message, true); });
+  });
+  $("emailVracilo").addEventListener("change", function () {
+    /* samo za naslednji predogled / shranjevanje; ne pošilja */
+  });
+  $("emailSaveBtn").addEventListener("click", function () {
+    act("save_email_template", emailPayload()).then(function (s) {
+      if (s.ok === false) throw new Error(s.msg || s.error);
+      applyState(s);
+      fillEmailForm(s);
+    }).catch(function (e) { toast(e.message, true); });
+  });
+  $("emailSendBtn").addEventListener("click", function () { confirmAndSend(false); });
+  $("emailTestBtn").addEventListener("click", function () { confirmAndSend(true); });
+  $("emailAddAttBtn").addEventListener("click", function () {
+    pickFiles().then(function (paths) {
+      (paths || []).forEach(function (p) {
+        if (p && emailExtraAttachments.indexOf(p) < 0) emailExtraAttachments.push(p);
+      });
+      var el = $("emailAttachments");
+      var shown = el.textContent || "";
+      if (paths && paths.length) el.textContent = (shown ? shown + "\n" : "") + paths.join("\n");
+    });
   });
 
 

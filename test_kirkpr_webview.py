@@ -94,11 +94,11 @@ class WebviewServiceTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def test_version_is_5_0_07(self) -> None:
-        self.assertEqual("5.0.07", APP_VERSION)
+    def test_version_is_5_0_08(self) -> None:
+        self.assertEqual("5.0.08", APP_VERSION)
         boot = self.svc.boot()
         self.assertTrue(boot["ok"])
-        self.assertEqual("5.0.07", boot["version"])
+        self.assertEqual("5.0.08", boot["version"])
         self.assertFalse(boot["has_data"])
 
     def test_load_source_lists_ir_pr_and_ddvo(self) -> None:
@@ -422,6 +422,62 @@ class WebviewServiceTests(unittest.TestCase):
             self.svc.download_invoice_attachments(ir_id, out_dir=str(down_dir))
 
 
+
+    def test_email_editor_save_and_send_requires_confirmation(self) -> None:
+        project_tpl = Path(r"D:\PISARNA\Python\KirKpr\ddvo_email_templates.json")
+        tpl_before = project_tpl.read_bytes() if project_tpl.is_file() else None
+        self.svc.selected_company = {
+            "Kratko ime": "Test d.o.o.",
+            "Org_ID": "99",
+            "DAVČNA": "12345678",
+            "Zšt": "1",
+            "E-mail": "stranka@example.com",
+        }
+        self.svc.load_source(str(self.sample))
+        editor = self.svc.get_email_editor()
+        self.assertTrue(editor["ok"])
+        self.assertTrue(editor["template_id"])
+        self.assertTrue(editor["rendered_subject"] or editor["subject"])
+        saved = self.svc.save_email_template(
+            template_id=editor["template_id"],
+            title=editor.get("title") or "Test predloga",
+            subject=editor.get("subject") or "DDV {obdobje}",
+            body=editor.get("body") or "<p>Pozdravljeni</p>",
+        )
+        self.assertTrue(saved["ok"])
+        local_tpl = self.base / "ddvo_email_templates.json"
+        self.assertTrue(local_tpl.is_file())
+        if tpl_before is not None:
+            self.assertEqual(tpl_before, project_tpl.read_bytes())
+        preview = self.svc.preview_email_send({
+            "to": "stranka@example.com",
+            "subject": saved.get("rendered_subject") or saved.get("subject") or "Test",
+            "body": saved.get("rendered_body") or saved.get("body") or "<p>Test</p>",
+            "channel": "smtp",
+        })
+        self.assertTrue(preview["ok"])
+        self.assertIn("Nadaljujem?", preview["prompt"])
+        with self.assertRaises(core.KirkprError) as ctx:
+            self.svc.send_email({
+                "to": "stranka@example.com",
+                "subject": "Ne sme se poslati",
+                "body": "<p>Ne sme se poslati</p>",
+                "channel": "smtp",
+            }, confirm=False)
+        self.assertIn("potrditvi", str(ctx.exception))
+        # Tudi TEST zahteva potrditev in se v testih ne sme izvesti.
+        with self.assertRaises(core.KirkprError):
+            self.svc.send_email({
+                "to": "stranka@example.com",
+                "subject": "TEST ne sme iti ven",
+                "body": "<p>x</p>",
+                "channel": "smtp",
+                "test": True,
+            }, confirm=False)
+        if tpl_before is not None:
+            self.assertEqual(tpl_before, project_tpl.read_bytes())
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -484,7 +540,7 @@ class HostHttpTests(unittest.TestCase):
     def test_boot_and_load_source_via_http(self) -> None:
         code, body = self._open("/api/boot")
         self.assertEqual(200, code)
-        self.assertEqual("5.0.07", body["version"])
+        self.assertEqual("5.0.08", body["version"])
         code, body = self._open("/api/action", {"name": "load_source", "path": str(self.sample), "sync": True})
         self.assertEqual(200, code)
         self.assertTrue(body.get("has_data"))
@@ -586,3 +642,27 @@ class HostHttpTests(unittest.TestCase):
         self.assertEqual(400, code)
         self.assertIn("potrditvi", refused.get("msg") or refused.get("error") or "")
         self.assertEqual([], client.sent)
+
+    def test_email_preview_and_send_without_confirm_via_http(self) -> None:
+        code, body = self._open("/api/action", {"name": "load_source", "path": str(self.sample), "sync": True})
+        self.assertEqual(200, code)
+        self.server.service.selected_company = {
+            "Kratko ime": "Test d.o.o.",
+            "Org_ID": "99",
+            "DAVČNA": "12345678",
+            "Zšt": "1",
+        }
+        code, editor = self._open("/api/email")
+        self.assertEqual(200, code)
+        self.assertTrue(editor.get("template_id"))
+        code, refused = self._open("/api/action", {
+            "name": "send_email",
+            "to": "stranka@example.com",
+            "subject": "Ne sme se poslati",
+            "body": "<p>x</p>",
+            "channel": "smtp",
+            "confirm": False,
+            "sync": True,
+        })
+        self.assertEqual(400, code)
+        self.assertIn("potrditvi", refused.get("msg") or refused.get("error") or "")

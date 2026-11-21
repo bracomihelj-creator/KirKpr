@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>KIR/KPR → Minimax Studio 5.0.07</title>
+  <title>KIR/KPR → Minimax Studio 5.0.08</title>
   <link rel="stylesheet" href="/ui/app.css">
 </head>
 <body>
@@ -65,7 +65,7 @@
   <aside class="sidebar" id="sidebar">
     <div class="brand">
       <div class="logo">K</div>
-      <div class="brandText"><b>KirKpr</b><span id="brandVer">5.0.07</span></div>
+      <div class="brandText"><b>KirKpr</b><span id="brandVer">5.0.08</span></div>
     </div>
     <nav class="nav" id="nav">
       <div class="navLbl">Evidence</div>
@@ -76,6 +76,7 @@
       <button class="navItem" data-view="knjige"><svg><use href="#i-book"/></svg><span>Knjige IR/PR</span></button>
       <button class="navItem" data-view="api"><svg><use href="#i-sync"/></svg><span>Minimax API</span></button>
       <div class="navLbl">Ostalo</div>
+      <button class="navItem" data-view="email"><svg><use href="#i-out"/></svg><span>E-pošta DDV</span></button>
       <button class="navItem" data-view="settings"><svg><use href="#i-cog"/></svg><span>Nastavitve poti</span></button>
       <button class="navItem" data-view="about"><svg><use href="#i-info"/></svg><span>O programu</span></button>
     </nav>
@@ -243,6 +244,51 @@
       </div>
       <div class="tableWrap"><table class="grid" id="tblApi"></table></div>
     </div>
+    <div class="page hidden" data-page="email" id="page-email">
+      <div class="bookTools" style="margin:0 22px 10px">
+        <span class="muted" id="emailMeta">Najprej odprite podatke.</span>
+      </div>
+      <div class="emailLayout">
+        <div class="emailCol">
+          <label class="fld">Predloga
+            <select id="emailTemplate"></select>
+          </label>
+          <label class="fld">Naslov predloge<input id="emailTitle"></label>
+          <label class="fld">Za<input id="emailTo"></label>
+          <label class="fld">KP / CC<input id="emailCc"></label>
+          <label class="fld">SKP / BCC<input id="emailBcc"></label>
+          <label class="fld">Od<input id="emailFrom"></label>
+          <label class="fld compact">Kanal
+            <select id="emailChannel">
+              <option value="smtp">SMTP</option>
+              <option value="outlook">Outlook</option>
+            </select>
+          </label>
+          <label class="fld">Zadeva<input id="emailSubject"></label>
+          <label class="fld">Telo (HTML)
+            <textarea id="emailBody" rows="14"></textarea>
+          </label>
+          <label class="fld">P.s.<input id="emailPs"></label>
+        </div>
+        <div class="emailCol side">
+          <p class="muted" id="emailLines"></p>
+          <label class="fld compact">Konto 62<input id="emailKonto62"></label>
+          <label class="chk"><input type="checkbox" id="emailVracilo"> Vračilo presežka</label>
+          <label class="chk"><input type="checkbox" id="emailAttachPdf" checked> Priponka DDV-O PDF</label>
+          <label class="chk"><input type="checkbox" id="emailAttachVirman" checked> Priponka virman</label>
+          <div class="muted" id="emailAttachments"></div>
+          <div class="popRow">
+            <button class="btn ghost" type="button" id="emailAddAttBtn">Dodaj priponko</button>
+          </div>
+          <div class="popRow">
+            <button class="btn" type="button" id="emailSaveBtn">Shrani predlogo</button>
+            <button class="btn" type="button" id="emailSendBtn">Pošlji stranki</button>
+            <button class="btn ghost" type="button" id="emailTestBtn">Pošlji TEST</button>
+          </div>
+          <p class="muted">Oddaja gre samo po potrditvi v pogovornem oknu. Testi programa e-pošte ne pošiljajo.</p>
+        </div>
+      </div>
+    </div>
     <div class="page hidden" data-page="settings" id="page-settings">
       <div style="padding:8px 22px 22px;max-width:720px;display:flex;flex-direction:column;gap:12px">
         <label class="fld">Register podjetij (EvidencaFirm)<input id="setRegistry"></label>
@@ -256,7 +302,7 @@
     </div>
     <div class="page hidden" data-page="about" id="page-about">
       <div style="padding:8px 22px 22px;max-width:720px" id="aboutBox">
-        <p><b>KIR/KPR → Minimax Studio 5.0.07</b> — vmesnik WebView2 po zgledu Trops Studio 5.</p>
+        <p><b>KIR/KPR → Minimax Studio 5.0.08</b> — vmesnik WebView2 po zgledu Trops Studio 5.</p>
         <p>Tk vmesnik 4.0.3 ostane v mapi (KirKpr_V4.0.3.pyw), dokler 5.x ne pokrije vseh zaslonov.</p>
         <p>Izračuni DDV, XML in oddaja v Minimax se v tej različici ne spreminjajo.</p>
       </div>

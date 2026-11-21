@@ -274,6 +274,15 @@ class Handler(BaseHTTPRequestHandler):
                     ),
                 )
                 return
+            if path == "/api/email":
+                self._json_resp(
+                    200,
+                    s.get_email_editor(
+                        template_id=str((q.get("template_id") or [""])[0]),
+                        konto62=(q.get("konto62") or [None])[0],
+                    ),
+                )
+                return
             if path == "/api/ddvo/quote":
                 self._json_resp(200, s.virman_quote((q.get("konto62") or ["0"])[0]))
                 return
@@ -377,6 +386,7 @@ LONG_ACTIONS = {
     "retry_failed_api_rows": "Ponovi NAPAKA",
     "download_invoice_attachments": "Prenos priponk PR",
     "download_supplier_issued_attachment": "Prenos IR QUICK M.B.",
+    "send_email": "Pošiljanje e-pošte DDV",
 }
 
 
@@ -457,6 +467,21 @@ def _actions(s: KirKprService) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
             str(b.get("id") or b.get("row_id") or ""),
             out_dir=str(b.get("out_dir") or ""),
         ),
+        "save_email_template": lambda b: s.save_email_template(
+            template_id=str(b.get("template_id") or ""),
+            title=str(b.get("title") or ""),
+            subject=str(b.get("subject") or ""),
+            body=str(b.get("body") or ""),
+            from_smtp=str(b.get("from_smtp") or ""),
+            line_height=str(b.get("line_height") or ""),
+            para_spacing_px=b.get("para_spacing_px"),
+            restore_values=b.get("restore_values", True),
+            konto62=b.get("konto62"),
+            vracilo=bool(b.get("vracilo")) if "vracilo" in b else None,
+            postscript=str(b.get("postscript")) if "postscript" in b else None,
+        ),
+        "preview_email_send": lambda b: s.preview_email_send(b),
+        "send_email": lambda b: s.send_email(b, confirm=b.get("confirm", False)),
     }
 
 

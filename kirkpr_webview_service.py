@@ -22,7 +22,7 @@ import minimax_api_client as minimax_api
 import kirkpr_minimax_core as core
 import convert_KIrKpr_to_minimax as gui_helpers
 
-APP_VERSION = "5.0.07"
+APP_VERSION = "5.0.08"
 APP_TITLE = "KIR/KPR \u2192 Minimax Studio"
 APP_EDITION = "WebView2"
 
@@ -2589,6 +2589,452 @@ class KirKprService:
         state["files"] = [str(path) for path in written]
         state["out_dir"] = str(target_dir)
         return state
+
+
+    def _email_base_dir(self) -> Path:
+        return self.base_dir
+
+    def _saved_konto62(self, tax: str) -> Any:
+        profile = self._profile_config()
+        tax_key = re.sub(r"\D+", "", str(tax or ""))
+        saved_by_tax = dict(profile.get("edavki_konto62_by_tax") or {})
+        root_by = dict(self.config.get("edavki_konto62_by_tax") or {})
+        saved = saved_by_tax.get(tax_key) or root_by.get(tax_key) or profile.get("edavki_konto62_credit") or "0"
+        signed = bool(profile.get("edavki_konto62_signed") or self.config.get("edavki_konto62_signed"))
+        saldo = core.edavki_konto62_saldo(saved)
+        if not signed and saldo > 0:
+            saldo = -saldo
+        return saldo
+
+    def _email_placeholder_bundle(
+        self,
+        *,
+        konto62: Any = None,
+        vracilo: bool | None = None,
+        postscript: str | None = None,
+    ) -> dict[str, Any]:
+        import kirkpr_ddvo_email_templates as email_tpl
+        import kirkpr_ddvo_virman as ddvo_virman
+
+        view = self._ddvo_view_or_error()
+        summary = core.ddvo_summary(view)
+        obligation = Decimal(str(summary.get("obligation") or 0))
+        excess = Decimal(str(summary.get("excess") or 0))
+        company_rec = self.selected_company or {}
+        company = registry.company_name(company_rec) if company_rec else "Stranka"
+        tax = (registry.company_tax_number(company_rec) if company_rec else "") or str(view.header.get("TaxPayerID") or "00000000")
+        period_from = str(view.period_from)
+        period_to = str(view.period_to)
+        period_short = ddvo_virman.period_label_short(period_from, period_to) or "—"
+        header_vracilo = bool(view.header.get("VRACILO")) if isinstance(getattr(view, "header", None), dict) else False
+        use_vracilo = header_vracilo if vracilo is None else bool(vracilo)
+        saldo62 = self._saved_konto62(tax) if konto62 is None or str(konto62).strip() == "" else konto62
+        calc = core.ddvo_virman_payment(obligation, saldo62)
+        try:
+            ref = ddvo_virman.furs_ddv_reference(tax)
+        except Exception:
+            ref = "SI19 ————-62006"
+        due = ddvo_virman.default_ddv_due_date(period_to)
+        profile = self._profile_config()
+        ps = postscript if postscript is not None else str(self.config.get("ddvo_email_ps") or profile.get("ddvo_email_ps") or "").strip()
+        payer_street, payer_city = ddvo_virman.split_slovenian_address(
+            str(company_rec.get("NASLOV") or company_rec.get("Naslov") or "")
+        )
+        values = email_tpl.build_placeholder_values(
+            company_name=company,
+            period_label=period_short,
+            obligation=gui_helpers.format_money(calc["obligation"]) if obligation > 0 or calc["payment"] > 0 else ("0,00" if excess > 0 else gui_helpers.format_money(calc["obligation"])),
+            preplacilo=gui_helpers.format_money(calc["konto62_credit"]),
+            placilo=gui_helpers.format_money(calc["payment"]) if calc["payment"] > 0 else "",
+            reference=ref if calc["payment"] > 0 else "",
+            iban=ddvo_virman.FURS_CREDITOR_IBAN if calc["payment"] > 0 else "",
+            datum=due.strftime("%d.%m.%Y") if calc["payment"] > 0 else "",
+            postscript=ps,
+            odgovorna_oseba=registry.company_responsible_person(company_rec) if company_rec else "",
+            payment_amount=calc["payment"],
+            payer_name=company,
+            payer_street=payer_street,
+            payer_city=payer_city,
+            excess=excess,
+            vracilo=use_vracilo,
+        )
+        line1, line2 = ddvo_virman.format_payment_lines(calc["obligation"], calc["konto62_credit"], calc["payment"])
+        attachments = self._discover_email_attachments(bool(calc["payment"] > 0))
+        return {
+            "values": values,
+            "calc": calc,
+            "obligation": obligation,
+            "excess": excess,
+            "company": company,
+            "tax": tax,
+            "period_short": period_short,
+            "period_from": period_from,
+            "period_to": period_to,
+            "vracilo": use_vracilo,
+            "konto62": saldo62,
+            "line1": line1,
+            "line2": line2,
+            "attachments": attachments,
+            "to": ddvo_virman.company_email(company_rec),
+        }
+
+    def _discover_email_attachments(self, include_virman: bool) -> list[Path]:
+        attachments: list[Path] = []
+        try:
+            out_dir = self._ddvo_initial_dir()
+            pdfs = sorted(out_dir.glob("*DDV*.pdf"), key=lambda p: p.stat().st_mtime, reverse=True)
+            if pdfs:
+                attachments.append(pdfs[0])
+            if include_virman:
+                virmani = sorted(
+                    list(out_dir.glob("*virman*.xml")) + list(out_dir.glob("*pain*.xml")),
+                    key=lambda p: p.stat().st_mtime,
+                    reverse=True,
+                )
+                if virmani:
+                    attachments.append(virmani[0])
+        except OSError:
+            pass
+        return attachments
+
+    def _filter_email_attachments(self, attachments: list[Path], *, attach_pdf: bool = True, attach_virman: bool = True, extras: list[str] | None = None) -> list[Path]:
+        selected: list[Path] = []
+        for raw in list(attachments) + [Path(p) for p in (extras or []) if str(p).strip()]:
+            path = Path(raw)
+            if not path.is_file():
+                continue
+            name = path.name.casefold()
+            is_pdf = path.suffix.casefold() == ".pdf"
+            is_virman = (not is_pdf) and (path.suffix.casefold() == ".xml" or "virman" in name or "pain" in name)
+            if is_pdf and not attach_pdf:
+                continue
+            if is_virman and not attach_virman:
+                continue
+            if path not in selected:
+                selected.append(path)
+        return selected
+
+    def get_email_editor(
+        self,
+        *,
+        template_id: str = "",
+        konto62: Any = None,
+        vracilo: bool | None = None,
+        postscript: str | None = None,
+    ) -> dict[str, Any]:
+        import kirkpr_ddvo_email_templates as email_tpl
+        import kirkpr_ddvo_virman as ddvo_virman
+
+        bundle = self._email_placeholder_bundle(konto62=konto62, vracilo=vracilo, postscript=postscript)
+        profile = self._profile_config()
+        base = self._email_base_dir()
+        tpl_id = email_tpl.resolve_template_id(
+            str(template_id or profile.get("ddvo_email_template_id") or ""),
+            email_tpl.get_active_template_id(base),
+            base_dir=base,
+        )
+        tpl = email_tpl.get_template(tpl_id, base_dir=base)
+        values = bundle["values"]
+        rendered_subject = email_tpl.render_placeholders(str(tpl.get("subject") or ""), values)
+        rendered_body = email_tpl.render_placeholders(str(tpl.get("body") or ""), values)
+        state = self._state()
+        state.update({
+            "template_id": str(tpl.get("id") or tpl_id),
+            "templates": [
+                {
+                    "id": str(row.get("id") or ""),
+                    "title": str(row.get("title") or row.get("id") or ""),
+                    "subject": str(row.get("subject") or ""),
+                }
+                for row in email_tpl.list_templates(base)
+            ],
+            "title": str(tpl.get("title") or ""),
+            "subject": str(tpl.get("subject") or ""),
+            "body": str(tpl.get("body") or ""),
+            "rendered_subject": rendered_subject,
+            "rendered_body": rendered_body,
+            "to": bundle["to"],
+            "cc": str(self.config.get("ddvo_email_cc") or "info@quickmb.com"),
+            "bcc": str(self.config.get("ddvo_email_bcc") or ""),
+            "from_smtp": str(self.config.get("ddvo_email_from") or tpl.get("from_smtp") or ddvo_virman.DEFAULT_OUTLOOK_FROM),
+            "channel": str(self.config.get("ddvo_email_channel") or "smtp"),
+            "read_receipt": bool(self.config.get("ddvo_email_read_receipt", True)),
+            "line_height": str(self.config.get("ddvo_email_line_height") or tpl.get("line_height") or "1.35"),
+            "para_spacing_px": int(self.config.get("ddvo_email_para_spacing_px") or tpl.get("para_spacing_px") or 4),
+            "deferred_send": str(self.config.get("ddvo_email_deferred_send") or ""),
+            "postscript": str(self.config.get("ddvo_email_ps") or profile.get("ddvo_email_ps") or ""),
+            "placeholders": {k: v for k, v in values.items() if not str(k).startswith("_")},
+            "qr_png": str(values.get("_qr_png") or ""),
+            "line1": bundle["line1"],
+            "line2": bundle["line2"],
+            "obligation": gui_helpers.format_money(bundle["obligation"]),
+            "excess": gui_helpers.format_money(bundle["excess"]),
+            "payment": gui_helpers.format_money(bundle["calc"]["payment"]),
+            "konto62": gui_helpers.format_money(bundle["calc"]["konto62_saldo"]) if "konto62_saldo" in bundle["calc"] else gui_helpers.format_money(bundle["calc"].get("konto62_credit") or 0),
+            "vracilo": bundle["vracilo"],
+            "period_label": bundle["period_short"],
+            "attachments": [str(path) for path in bundle["attachments"]],
+            "attach_pdf": True,
+            "attach_virman": bool(bundle["calc"]["payment"] > 0),
+        })
+        return state
+
+    def save_email_template(
+        self,
+        *,
+        template_id: str = "",
+        title: str = "",
+        subject: str = "",
+        body: str = "",
+        from_smtp: str = "",
+        line_height: str = "",
+        para_spacing_px: Any = None,
+        restore_values: bool = True,
+        konto62: Any = None,
+        vracilo: bool | None = None,
+        postscript: str | None = None,
+    ) -> dict[str, Any]:
+        import kirkpr_ddvo_email_templates as email_tpl
+
+        base = self._email_base_dir()
+        profile = self._profile_config()
+        tid = str(template_id or profile.get("ddvo_email_template_id") or "").strip()
+        if not tid:
+            tid = email_tpl.get_active_template_id(base)
+        subject_out = str(subject or "")
+        body_out = str(body or "")
+        if restore_values:
+            bundle = self._email_placeholder_bundle(konto62=konto62, vracilo=vracilo, postscript=postscript)
+            subject_out = email_tpl.restore_placeholders(subject_out, bundle["values"])
+            body_out = email_tpl.restore_placeholders(body_out, bundle["values"])
+        saved_id = email_tpl.save_template(
+            tid,
+            title=title or tid,
+            subject=subject_out,
+            body=body_out,
+            from_smtp=from_smtp,
+            line_height=line_height,
+            para_spacing_px=int(para_spacing_px) if para_spacing_px not in (None, "") else None,
+            base_dir=base,
+        )
+        email_tpl.set_active_template_id(saved_id, base_dir=base)
+        profile["ddvo_email_template_id"] = saved_id
+        if postscript is not None:
+            self.config["ddvo_email_ps"] = str(postscript)
+            profile["ddvo_email_ps"] = str(postscript)
+        self._persist_config()
+        state = self.get_email_editor(template_id=saved_id, konto62=konto62, vracilo=vracilo, postscript=postscript)
+        state["msg"] = "Predloga e-pošte je shranjena."
+        return state
+
+    def _prepare_email_payload(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        import kirkpr_ddvo_email_templates as email_tpl
+        import kirkpr_ddvo_virman as ddvo_virman
+
+        bundle = self._email_placeholder_bundle(
+            konto62=payload.get("konto62"),
+            vracilo=payload.get("vracilo") if "vracilo" in payload else None,
+            postscript=payload.get("postscript") if "postscript" in payload else None,
+        )
+        values = bundle["values"]
+        subject = str(payload.get("subject") or "")
+        body = str(payload.get("body") or "")
+        if values:
+            if "{" in subject:
+                subject = email_tpl.render_placeholders(subject, values)
+            if "{" in body:
+                body = email_tpl.render_placeholders(body, values)
+        channel = str(payload.get("channel") or self.config.get("ddvo_email_channel") or "smtp").strip().casefold()
+        if channel not in ("smtp", "outlook"):
+            channel = "smtp"
+        to_addr = ddvo_virman.normalize_outlook_recipients(str(payload.get("to") or bundle["to"] or ""))
+        cc_addr = ddvo_virman.normalize_outlook_recipients(str(payload.get("cc") or self.config.get("ddvo_email_cc") or ""))
+        bcc_addr = ddvo_virman.normalize_outlook_recipients(str(payload.get("bcc") or self.config.get("ddvo_email_bcc") or ""))
+        from_smtp = str(payload.get("from_smtp") or self.config.get("ddvo_email_from") or ddvo_virman.DEFAULT_OUTLOOK_FROM).strip()
+        is_test = self._is_confirmed(payload.get("test")) or str(payload.get("test") or "").strip() in {"1", "Da", "da"}
+        if is_test:
+            to_addr = "info@quickmb.com"
+            cc_addr = ""
+            bcc_addr = ""
+            if not subject.casefold().startswith("[test]"):
+                subject = f"[TEST] {subject}"
+        if not is_test and not to_addr.strip():
+            raise core.KirkprError("Manjka prejemnik (Za).")
+        if not subject.strip() or not body.strip():
+            raise core.KirkprError("Zadeva in telo ne smeta biti prazna.")
+        extras = list(payload.get("attachments") or payload.get("extra_attachments") or [])
+        attach_pdf = str(payload.get("attach_pdf", "1")).strip() not in {"0", "false", "False"}
+        attach_virman = str(payload.get("attach_virman", "1")).strip() not in {"0", "false", "False"}
+        files = self._filter_email_attachments(bundle["attachments"], attach_pdf=attach_pdf, attach_virman=attach_virman, extras=extras)
+        qr_png = str(payload.get("qr_png") or values.get("_qr_png") or "").strip()
+        return {
+            "to": to_addr,
+            "cc": cc_addr,
+            "bcc": bcc_addr,
+            "from_smtp": from_smtp,
+            "channel": channel,
+            "subject": subject,
+            "body": body,
+            "test": is_test,
+            "attachments": files,
+            "qr_png": qr_png,
+            "line_height": str(payload.get("line_height") or self.config.get("ddvo_email_line_height") or "1.35"),
+            "para_spacing_px": int(payload.get("para_spacing_px") or self.config.get("ddvo_email_para_spacing_px") or 4),
+            "deferred_send": "" if is_test else str(payload.get("deferred_send") or ""),
+            "read_receipt": str(payload.get("read_receipt") or "1") != "0",
+            "company": bundle["company"],
+            "period": bundle["period_short"],
+            "payment": gui_helpers.format_money(bundle["calc"]["payment"]),
+        }
+
+    def preview_email_send(self, payload: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        prepared = self._prepare_email_payload(payload or {})
+        channel = "SMTP" if prepared["channel"] == "smtp" else "Outlook"
+        kind = "TEST e-pošta" if prepared["test"] else "E-pošta stranki"
+        files = "\n".join(f"• {path.name}" for path in prepared["attachments"]) or "• (brez priponk)"
+        if prepared["test"]:
+            prompt = (
+                f"TEST ({channel}): poslati SAMO na info@quickmb.com?\n\n"
+                f"Zadeva: {prepared['subject']}\n"
+                f"Priponke:\n{files}\n\n"
+                "Da = pošlji TEST\nNe = prekliči"
+            )
+        else:
+            prompt = (
+                f"{kind} prek {channel}\n\n"
+                f"Za: {prepared['to'] or '—'}\n"
+                f"KP/CC: {prepared['cc'] or '(brez)'}\n"
+                f"SKP/BCC: {prepared['bcc'] or '(brez)'}\n"
+                f"Od: {prepared['from_smtp']}\n"
+                f"Zadeva: {prepared['subject']}\n"
+                f"Priponke:\n{files}\n\n"
+                "Dokument bo poslan. Nadaljujem?"
+            )
+        return {
+            "ok": True,
+            "prompt": prompt,
+            "to": prepared["to"],
+            "cc": prepared["cc"],
+            "bcc": prepared["bcc"],
+            "subject": prepared["subject"],
+            "channel": prepared["channel"],
+            "test": prepared["test"],
+            "attachments": [str(path) for path in prepared["attachments"]],
+        }
+
+    def send_email(self, payload: Mapping[str, Any] | None = None, *, confirm: Any = False) -> dict[str, Any]:
+        if not self._is_confirmed(confirm):
+            raise core.KirkprError("Pošiljanje e-pošte je dovoljeno samo po potrditvi v vmesniku.")
+        prepared = self._prepare_email_payload(payload or {})
+        if not prepared["test"]:
+            self.config["ddvo_email_from"] = prepared["from_smtp"]
+            self.config["ddvo_email_channel"] = prepared["channel"]
+            self.config["ddvo_email_read_receipt"] = prepared["read_receipt"]
+            self.config["ddvo_email_delivery_receipt"] = True
+            self.config["ddvo_email_line_height"] = prepared["line_height"]
+            self.config["ddvo_email_para_spacing_px"] = prepared["para_spacing_px"]
+            if prepared["cc"]:
+                self.config["ddvo_email_cc"] = prepared["cc"]
+            else:
+                self.config.pop("ddvo_email_cc", None)
+            if prepared["bcc"]:
+                self.config["ddvo_email_bcc"] = prepared["bcc"]
+            else:
+                self.config.pop("ddvo_email_bcc", None)
+            if prepared["channel"] == "outlook" and prepared["deferred_send"]:
+                self.config["ddvo_email_deferred_send"] = prepared["deferred_send"]
+            else:
+                self.config.pop("ddvo_email_deferred_send", None)
+            try:
+                self._persist_config()
+            except OSError:
+                pass
+        ok, mail_msg = self._dispatch_email(prepared)
+        state = self._state()
+        state["ok"] = bool(ok)
+        state["msg"] = mail_msg
+        state["sent"] = bool(ok)
+        state["to"] = prepared["to"]
+        state["subject"] = prepared["subject"]
+        state["channel"] = prepared["channel"]
+        state["test"] = prepared["test"]
+        if not ok:
+            raise core.KirkprError(mail_msg)
+        return state
+
+    def _dispatch_email(self, prepared: Mapping[str, Any]) -> tuple[bool, str]:
+        import kirkpr_ddvo_virman as ddvo_virman
+
+        qr_png = prepared.get("qr_png") or None
+        if qr_png and not Path(str(qr_png)).is_file():
+            qr_png = None
+        channel = prepared["channel"]
+        is_test = bool(prepared["test"])
+        attachments = list(prepared["attachments"])
+        if channel == "smtp":
+            import kirkpr_ddvo_smtp as ddvo_smtp
+
+            path = ddvo_smtp.smtp_secret_path()
+            if not path:
+                return False, "SMTP ni pripravljen: ni smtp_secret.bin."
+            try:
+                mode = ddvo_smtp.send_smtp(
+                    to_addr=str(prepared["to"] or ""),
+                    subject=str(prepared["subject"] or ""),
+                    body=str(prepared["body"] or ""),
+                    attachments=attachments,
+                    html=True,
+                    reply_to=str(prepared["from_smtp"] or ""),
+                    cc=str(prepared["cc"] or ""),
+                    bcc=str(prepared["bcc"] or ""),
+                    upn_qr_png=qr_png,
+                    line_height=str(prepared["line_height"] or "1.35"),
+                    para_spacing_px=int(prepared["para_spacing_px"] or 4),
+                )
+            except Exception as exc:
+                return False, f"SMTP napaka: {exc}"
+            qr_note = " + UPN QR v telesu" if qr_png else ""
+            prefix = "✓ TEST POSLAN prek SMTP" if is_test else "✓ POSLANO prek SMTP"
+            return True, (
+                f"{prefix} ({mode}){qr_note}\n"
+                f"Za: {prepared['to'] or '—'}\n"
+                f"KP/CC: {prepared['cc'] or '(brez)'}\n"
+                f"SKP/BCC: {prepared['bcc'] or '(brez)'}\n"
+                f"Od: {ddvo_smtp.SENDER_EMAIL}"
+            )
+        deferred = None
+        defer_raw = str(prepared.get("deferred_send") or "").strip()
+        if (not is_test) and defer_raw:
+            try:
+                deferred = ddvo_virman.parse_deferred_send_si(defer_raw)
+            except ValueError as exc:
+                return False, str(exc)
+        ok, mail_msg = ddvo_virman.compose_outlook_with_attachments(
+            to_addr=str(prepared["to"] or ""),
+            subject=str(prepared["subject"] or ""),
+            body=str(prepared["body"] or ""),
+            attachments=attachments,
+            html=True,
+            from_smtp=str(prepared["from_smtp"] or ""),
+            deferred_send=deferred,
+            read_receipt=bool(prepared.get("read_receipt", True)),
+            delivery_receipt=True,
+            line_height=str(prepared["line_height"] or "1.35"),
+            para_spacing_px=int(prepared["para_spacing_px"] or 4),
+            upn_qr_png=qr_png,
+            send_now=True,
+            cc=str(prepared["cc"] or ""),
+            bcc=str(prepared["bcc"] or ""),
+        )
+        if ok:
+            if is_test:
+                head = "✓ TEST POSLAN prek Outlook"
+            elif deferred is not None:
+                head = "⏱ ODLOŽENO (še NI poslano)"
+            else:
+                head = "✓ POSLANO prek Outlook"
+            mail_msg = f"{head}\nZa: {prepared['to'] or '—'}\nKP/CC: {prepared['cc'] or '(brez)'}\nSKP/BCC: {prepared['bcc'] or '(brez)'}\n{mail_msg}"
+        return ok, mail_msg
 
     def log_path(self) -> dict[str, Any]:
         import kirkpr_logging
