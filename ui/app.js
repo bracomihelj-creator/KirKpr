@@ -1,6 +1,6 @@
-/* KirKpr 5.0.08 — vmesnik WebView2 (klici HTTP API / pywebview Bridge). */
+/* KirKpr 5.0.09 — vmesnik WebView2 po zgledu Trops Studio 5 (klici HTTP API / pywebview Bridge). */
 (function () {
-  var state = { view: "ir", boot: null, companies: [], selected: {}, editor: null, dataEditor: null, dataField: "", lastExportDir: "", lastExportPath: "", knjigaBook: "IR", knjigaMode: "json", apiFilter: "ALL" };
+  var state = { view: "ir", boot: null, companies: [], selected: {}, editor: null, dataEditor: null, dataField: "", lastExportDir: "", lastExportPath: "", knjigaBook: "IR", knjigaMode: "json", apiFilter: "ALL", selectedSessionId: "" };
   var titles = {
     ir: "Izdani računi",
     pr: "Prejeti računi",
@@ -73,10 +73,11 @@
       return;
     }
     state.boot = s;
-    $("brandVer").textContent = s.version || "5.0.08";
-    if (s.theme) document.documentElement.setAttribute("data-theme", s.theme);
+    $("brandVer").textContent = s.version || "5.0.09";
+    applyThemeLook(s.theme, s.look);
     if ($("autoReopenChk")) $("autoReopenChk").checked = !!s.auto_reopen;
     if (s.sessions) renderSessions(s.sessions, s.selected_session_id);
+    else if (s.selected_session_id) state.selectedSessionId = s.selected_session_id;
     var company = s.company;
     $("companyLabel").textContent = company ? ((company.zst ? company.zst + " · " : "") + (company.name || company.key)) : "Ni izbrano";
     $("periodLabel").textContent = s.period_label || (s.period_from ? (s.period_from + " – " + s.period_to) : "—");
@@ -98,6 +99,11 @@
     $("crumbs").textContent = crumb.join(" · ") || "Izberi podjetje in odpri KIR/KPR datoteko.";
     var dirty = s.working_dirty ? "Neshranjeni popravki. " : "";
     $("statusLine").textContent = dirty + (s.msg || (s.has_data ? "Podatki so naloženi." : "Ni naloženih podatkov."));
+    var dot = $("statusDot");
+    if (dot) {
+      dot.classList.toggle("on", !!s.has_data && !s.working_dirty);
+      dot.classList.toggle("warn", !!s.working_dirty);
+    }
     if (s.msg) toast(s.msg, s.ok === false);
     var about = $("aboutBox");
     if (about) {
@@ -109,24 +115,41 @@
 
 
   function renderSessions(rows, selectedId) {
-    var sel = $("sessionSelect");
-    if (!sel) return;
-    var current = selectedId || sel.value;
-    sel.innerHTML = "";
-    var empty = document.createElement("option");
-    empty.value = "";
-    empty.textContent = rows && rows.length ? "Izberi sejo…" : "Ni shranjene seje";
-    sel.appendChild(empty);
-    (rows || []).forEach(function (row) {
-      var opt = document.createElement("option");
-      opt.value = String(row.id);
-      opt.textContent = row.label || row.title || ("Seja " + row.id);
-      if (String(row.id) === String(current)) opt.selected = true;
-      sel.appendChild(opt);
-    });
+    var current = selectedId || state.selectedSessionId || "";
+    state.selectedSessionId = current ? String(current) : "";
+    var box = $("sessionList");
+    if (box) {
+      box.innerHTML = "";
+      if (!(rows || []).length) {
+        box.innerHTML = "<div class=\"empty\">Ni shranjene seje.</div>";
+      } else {
+        (rows || []).forEach(function (row) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "sessionItem" + (String(row.id) === String(state.selectedSessionId) ? " active" : "");
+          btn.setAttribute("data-session-id", String(row.id));
+          btn.innerHTML = "<span>" + escapeHtml(row.label || row.title || ("Seja " + row.id)) + "</span>";
+          btn.addEventListener("click", function (ev) {
+            ev.stopPropagation();
+            state.selectedSessionId = String(row.id);
+            renderSessions(rows, row.id);
+          });
+          box.appendChild(btn);
+        });
+      }
+    }
+    var chosen = (rows || []).find(function (r) { return String(r.id) === String(state.selectedSessionId); });
     var label = $("sessionLabel");
-    var chosen = (rows || []).find(function (r) { return String(r.id) === String(sel.value); });
     if (label) label.textContent = chosen ? (chosen.label || chosen.title) : (rows && rows.length ? "Izberi sejo" : "Ni shranjene seje");
+  }
+
+  function selectedSessionId() {
+    return state.selectedSessionId || "";
+  }
+
+  function selectedSessionLabel() {
+    var btn = document.querySelector("#sessionList .sessionItem.active");
+    return (btn && btn.textContent) || $("sessionLabel").textContent || selectedSessionId();
   }
 
   function loadSessions() {
@@ -137,8 +160,89 @@
   }
 
   function closeMenus() {
-    document.querySelectorAll(".menu").forEach(function (m) { m.classList.remove("open"); });
-    document.querySelectorAll(".menuList").forEach(function (m) { m.classList.add("hidden"); });
+    document.querySelectorAll(".menuGroup.open").forEach(function (m) { m.classList.remove("open"); });
+  }
+
+  function closePops() {
+    ["companyPop", "periodPop", "sessionPop"].forEach(function (id) {
+      var el = $(id);
+      if (el) el.classList.add("hidden");
+    });
+    closeMenus();
+  }
+
+  function placePopover(pop, anchor) {
+    if (!pop || !anchor) return;
+    pop.style.position = "fixed";
+    pop.style.right = "auto";
+    var r = anchor.getBoundingClientRect();
+    var w = Math.max(pop.offsetWidth || 0, 360);
+    var left = r.left;
+    if (left + w > window.innerWidth - 8) left = Math.max(8, r.right - w);
+    if (left < 8) left = 8;
+    var top = r.bottom + 6;
+    var h = pop.offsetHeight || 240;
+    if (top + h > window.innerHeight - 8 && r.top > h + 8) top = Math.max(8, r.top - h - 6);
+    pop.style.left = left + "px";
+    pop.style.top = top + "px";
+    pop.style.zIndex = "80";
+  }
+
+  function openPop(pop, anchor) {
+    closePops();
+    pop.classList.remove("hidden");
+    placePopover(pop, anchor);
+  }
+
+  function placeFlyout(btn, fly) {
+    var r = btn.getBoundingClientRect();
+    var look = document.documentElement.getAttribute("data-look") || "t5";
+    fly.style.position = "fixed";
+    if (look === "t4") {
+      fly.style.left = Math.max(8, r.left) + "px";
+      fly.style.top = (r.bottom + 4) + "px";
+    } else {
+      var top = r.top;
+      var h = fly.offsetHeight || 200;
+      if (top + h > window.innerHeight - 8) top = Math.max(8, window.innerHeight - h - 8);
+      fly.style.left = (r.right + 6) + "px";
+      fly.style.top = top + "px";
+    }
+    fly.style.zIndex = "90";
+  }
+
+  function normalizeTheme(theme) {
+    return String(theme || "").toLowerCase() === "dark" ? "dark" : "light";
+  }
+
+  function normalizeLook(look) {
+    return String(look || "").toLowerCase() === "t4" ? "t4" : "t5";
+  }
+
+  function applyThemeLook(theme, look) {
+    theme = normalizeTheme(theme || document.documentElement.getAttribute("data-theme"));
+    look = normalizeLook(look || document.documentElement.getAttribute("data-look"));
+    document.documentElement.setAttribute("data-theme", theme);
+    document.documentElement.setAttribute("data-look", look);
+    document.querySelectorAll("[data-look-btn]").forEach(function (btn) {
+      var on = btn.getAttribute("data-look-btn") === look;
+      btn.classList.toggle("on", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    var ico = $("themeBtn") && $("themeBtn").querySelector("use");
+    if (ico) ico.setAttribute("href", theme === "dark" ? "#i-sun" : "#i-moon");
+  }
+
+  function setLook(look) {
+    look = normalizeLook(look);
+    applyThemeLook(document.documentElement.getAttribute("data-theme"), look);
+    act("set_look", { look: look }).then(function (s) { if (s) applyState(s); }).catch(function (e) { toast(e.message, true); });
+  }
+
+  function setTheme(theme) {
+    theme = normalizeTheme(theme);
+    applyThemeLook(theme, document.documentElement.getAttribute("data-look"));
+    act("set_theme", { theme: theme }).then(function (s) { if (s) applyState(s); }).catch(function (e) { toast(e.message, true); });
   }
 
   function showHelp(topic) {
@@ -161,7 +265,7 @@
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "companyItem" + (state.boot && state.boot.company && state.boot.company.key === c.key ? " active" : "");
-      btn.innerHTML = "<span class=\"zst\">" + (c.zst || "") + "</span><span>" + (c.name || c.key) + "<br><small>" + (c.tax || "") + "</small></span>";
+      btn.innerHTML = "<span class=\"zst\">" + escapeHtml(c.zst || "") + "</span><span>" + escapeHtml(c.name || c.key) + "<br><small>" + escapeHtml(c.tax || "") + "</small></span>";
       btn.addEventListener("click", function () {
         post("/api/company/select", { key: c.key }).then(function (s) {
           applyState(s);
@@ -636,14 +740,29 @@
     var btn = ev.target.closest("[data-view]");
     if (btn) setView(btn.getAttribute("data-view"));
   });
-  $("companyBtn").addEventListener("click", function () {
-    $("companyPop").classList.toggle("hidden");
-    $("periodPop").classList.add("hidden");
-    if (!$("companyPop").classList.contains("hidden")) $("companySearch").focus();
+  $("companyBtn").addEventListener("click", function (ev) {
+    ev.stopPropagation();
+    if (!$("companyPop").classList.contains("hidden")) { closePops(); return; }
+    openPop($("companyPop"), $("companyBtn"));
+    api("/api/companies?q=" + encodeURIComponent($("companySearch").value || "")).then(function (data) {
+      renderCompanies(data.rows || []);
+      placePopover($("companyPop"), $("companyBtn"));
+      $("companySearch").focus();
+    }).catch(function (e) { toast(e.message, true); });
   });
-  $("periodBtn").addEventListener("click", function () {
-    $("periodPop").classList.toggle("hidden");
-    $("companyPop").classList.add("hidden");
+  $("periodBtn").addEventListener("click", function (ev) {
+    ev.stopPropagation();
+    if (!$("periodPop").classList.contains("hidden")) { closePops(); return; }
+    openPop($("periodPop"), $("periodBtn"));
+  });
+  $("sessionBtn").addEventListener("click", function (ev) {
+    ev.stopPropagation();
+    if (!$("sessionPop").classList.contains("hidden")) { closePops(); return; }
+    openPop($("sessionPop"), $("sessionBtn"));
+    loadSessions().then(function () { placePopover($("sessionPop"), $("sessionBtn")); }).catch(function (e) { toast(e.message, true); });
+  });
+  ["companyPop", "periodPop", "sessionPop"].forEach(function (id) {
+    $(id).addEventListener("click", function (ev) { ev.stopPropagation(); });
   });
   $("companySearch").addEventListener("input", function () {
     var q = $("companySearch").value;
@@ -754,17 +873,25 @@
   });
   $("themeBtn").addEventListener("click", function () {
     var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", next);
-    act("set_theme", { theme: next }).catch(function () {});
+    setTheme(next);
   });
   document.addEventListener("click", function (ev) {
-    if (!ev.target.closest(".menu")) closeMenus();
-    if (!ev.target.closest("#companyPicker") && !ev.target.closest("#companyPop")) {
-      $("companyPop").classList.add("hidden");
+    if (!ev.target.closest(".menuGroup") && !ev.target.closest(".flyout") && !ev.target.closest(".picker") && !ev.target.closest(".popover")) {
+      closePops();
     }
-    if (!ev.target.closest("#periodBtn") && !ev.target.closest("#periodPop") && !ev.target.closest("#periodPrev") && !ev.target.closest("#periodNext")) {
-      $("periodPop").classList.add("hidden");
-    }
+  });
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape") closePops();
+  });
+  window.addEventListener("resize", function () {
+    if (!$("companyPop").classList.contains("hidden")) placePopover($("companyPop"), $("companyBtn"));
+    if (!$("periodPop").classList.contains("hidden")) placePopover($("periodPop"), $("periodBtn"));
+    if (!$("sessionPop").classList.contains("hidden")) placePopover($("sessionPop"), $("sessionBtn"));
+    document.querySelectorAll(".menuGroup.open").forEach(function (group) {
+      var btn = group.querySelector("[data-menu]");
+      var fly = group.querySelector(".flyout");
+      if (btn && fly) placeFlyout(btn, fly);
+    });
   });
 
 
@@ -848,17 +975,29 @@
   });
 
 
-  document.querySelectorAll(".menuBtn").forEach(function (btn) {
+  document.querySelectorAll("[data-menu]").forEach(function (btn) {
     btn.addEventListener("click", function (ev) {
       ev.stopPropagation();
-      var menu = btn.parentElement;
-      var open = menu.classList.contains("open");
-      closeMenus();
+      ev.preventDefault();
+      var group = btn.closest(".menuGroup");
+      if (!group) return;
+      var open = group.classList.contains("open");
+      closePops();
       if (!open) {
-        menu.classList.add("open");
-        var list = menu.querySelector(".menuList");
-        if (list) list.classList.remove("hidden");
+        group.classList.add("open");
+        var fly = group.querySelector(".flyout");
+        if (fly) placeFlyout(btn, fly);
       }
+    });
+  });
+  document.querySelectorAll(".flyout").forEach(function (fly) {
+    fly.addEventListener("click", function (ev) { ev.stopPropagation(); });
+  });
+  document.querySelectorAll("[data-look-btn], [data-look-act]").forEach(function (btn) {
+    btn.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      closeMenus();
+      setLook(btn.getAttribute("data-look-btn") || btn.getAttribute("data-look-act") || "t5");
     });
   });
   document.querySelectorAll("[data-file]").forEach(function (btn) {
@@ -897,9 +1036,7 @@
   document.querySelectorAll("[data-theme]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       closeMenus();
-      var theme = btn.getAttribute("data-theme") || "light";
-      document.documentElement.setAttribute("data-theme", theme);
-      act("set_theme", { theme: theme }).then(function (s) { if (s) applyState(s); }).catch(function (e) { toast(e.message, true); });
+      setTheme(btn.getAttribute("data-theme") || "light");
     });
   });
   document.querySelectorAll("[data-help]").forEach(function (btn) {
@@ -912,7 +1049,7 @@
   $("helpOk").addEventListener("click", function () { $("helpModal").classList.add("hidden"); });
   $("helpModal").addEventListener("click", function (ev) { if (ev.target === $("helpModal")) $("helpModal").classList.add("hidden"); });
   $("sessionOpenBtn").addEventListener("click", function () {
-    var id = $("sessionSelect").value;
+    var id = selectedSessionId();
     if (!id) { toast("Ni izbrane seje.", true); return; }
     runAction("open_session", { id: Number(id) }).then(function (s) {
       if (s) applyState(s);
@@ -930,9 +1067,9 @@
     }).catch(function (e) { toast(e.message, true); });
   });
   $("sessionDeleteBtn").addEventListener("click", function () {
-    var id = $("sessionSelect").value;
+    var id = selectedSessionId();
     if (!id) { toast("Ni izbrane seje.", true); return; }
-    var label = $("sessionSelect").selectedOptions[0] ? $("sessionSelect").selectedOptions[0].textContent : id;
+    var label = selectedSessionLabel() || id;
     if (!window.confirm("Res zbrišem sejo\\n\\n" + label + "\\n\\nDatoteka s podatki ostane, zbriše se samo zapis seje.")) return;
     act("delete_session", { id: Number(id) }).then(function (s) {
       if (s.ok === false) throw new Error(s.msg || s.error);

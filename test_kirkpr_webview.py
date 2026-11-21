@@ -94,12 +94,44 @@ class WebviewServiceTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def test_version_is_5_0_08(self) -> None:
-        self.assertEqual("5.0.08", APP_VERSION)
+    def test_version_is_5_0_09(self) -> None:
+        self.assertEqual("5.0.09", APP_VERSION)
         boot = self.svc.boot()
         self.assertTrue(boot["ok"])
-        self.assertEqual("5.0.08", boot["version"])
+        self.assertEqual("5.0.09", boot["version"])
         self.assertFalse(boot["has_data"])
+
+    def test_theme_and_look_defaults_and_persist_in_temp_config(self) -> None:
+        boot = self.svc.boot()
+        self.assertEqual("light", boot["theme"])
+        self.assertEqual("t5", boot["look"])
+        themed = self.svc.set_theme("dark")
+        self.assertEqual("dark", themed["theme"])
+        looked = self.svc.set_look("t4")
+        self.assertEqual("t4", looked["look"])
+        saved = json.loads(self.config_path.read_text(encoding="utf-8"))
+        self.assertEqual("dark", saved.get("ui_theme"))
+        self.assertEqual("t4", saved.get("ui_look"))
+        again = KirKprService(config_path=self.config_path, base_dir=self.base)
+        boot2 = again.boot()
+        self.assertEqual("dark", boot2["theme"])
+        self.assertEqual("t4", boot2["look"])
+
+    def test_restored_company_gets_period_suggestion(self) -> None:
+        company = {"Zšt": "7", "Kratko ime": "Test d.o.o.", "oddaja DDV": "Mesečni"}
+        key = "zst-7"
+        cfg = json.loads(self.config_path.read_text(encoding="utf-8"))
+        cfg["selected_company_key"] = key
+        self.config_path.write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        svc = KirKprService(config_path=self.config_path, base_dir=self.base)
+        svc.companies = [company]
+        svc._restore_selected_company()
+        state = svc._state()
+        self.assertIsNotNone(svc.selected_company)
+        self.assertTrue(state["period_from"])
+        self.assertTrue(state["period_to"])
+        self.assertTrue(state["period_label"])
+        self.assertNotEqual("—", state["period_label"])
 
     def test_load_source_lists_ir_pr_and_ddvo(self) -> None:
         result = self.svc.load_source(str(self.sample))
@@ -540,7 +572,7 @@ class HostHttpTests(unittest.TestCase):
     def test_boot_and_load_source_via_http(self) -> None:
         code, body = self._open("/api/boot")
         self.assertEqual(200, code)
-        self.assertEqual("5.0.08", body["version"])
+        self.assertEqual("5.0.09", body["version"])
         code, body = self._open("/api/action", {"name": "load_source", "path": str(self.sample), "sync": True})
         self.assertEqual(200, code)
         self.assertTrue(body.get("has_data"))

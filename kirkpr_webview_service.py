@@ -22,7 +22,7 @@ import minimax_api_client as minimax_api
 import kirkpr_minimax_core as core
 import convert_KIrKpr_to_minimax as gui_helpers
 
-APP_VERSION = "5.0.08"
+APP_VERSION = "5.0.09"
 APP_TITLE = "KIR/KPR \u2192 Minimax Studio"
 APP_EDITION = "WebView2"
 
@@ -71,6 +71,7 @@ class KirKprService:
         self.base_dir = (base_dir or Path(__file__).resolve().parent).resolve()
         self.config_path = Path(config_path) if config_path else core.config_path(self.base_dir)
         self.config = core.load_config(self.config_path)
+        self._load_ui_prefs()
         self.dataset: core.KirkprDataset | None = None
         self.source_dataset: core.KirkprDataset | None = None
         self.companies: list[dict[str, Any]] = []
@@ -125,12 +126,38 @@ class KirKprService:
         self.registry_file, rows = registry.load_companies(preferred)
         self.companies = [dict(row) for row in rows]
 
+    def _load_ui_prefs(self) -> None:
+        """core.load_config prebere samo znane ključe; tema in videz ostaneta v isti datoteki."""
+        try:
+            if not self.config_path.is_file():
+                return
+            loaded = json.loads(self.config_path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError):
+            return
+        if not isinstance(loaded, dict):
+            return
+        if "ui_theme" in loaded:
+            self.config["ui_theme"] = loaded.get("ui_theme")
+        if "ui_look" in loaded:
+            self.config["ui_look"] = loaded.get("ui_look")
+
+    def _suggest_period_from_company(self) -> None:
+        """Predlaga obdobje iz oddaje DDV, če podatki še niso naloženi (samo prikaz)."""
+        if self.dataset is not None or not self.selected_company:
+            return
+        oddaja = registry.company_oddaja_ddv(self.selected_company)
+        bounds = gui_helpers.period_bounds_for_oddaja_ddv(oddaja) if oddaja else None
+        if bounds:
+            self.period_from, self.period_to = bounds
+            self.period_label = gui_helpers.period_label_for_range(*bounds)
+
     def _restore_selected_company(self) -> None:
         key = str(self.config.get("selected_company_key") or "").strip()
         if key:
             found = registry.find_company(self.companies, key)
             if found:
                 self.selected_company = found
+                self._suggest_period_from_company()
                 return
         self.selected_company = None
 
@@ -227,7 +254,8 @@ class KirKprService:
             "has_data": self.dataset is not None,
             "working_dirty": self.working_dirty,
             "auto_reopen": bool(self.config.get("auto_reopen_last_source")),
-            "theme": str(self.config.get("ui_theme") or "light"),
+            "theme": "dark" if str(self.config.get("ui_theme") or "light").strip().lower() == "dark" else "light",
+            "look": "t4" if str(self.config.get("ui_look") or "t5").strip().lower() == "t4" else "t5",
             "selected_session_id": self._selected_session_id,
             "api": self._api_public_state(),
             "summary": summary,
@@ -265,13 +293,8 @@ class KirKprService:
         self.selected_company = found
         self._load_api_options_from_profile()
         if found:
-            oddaja = registry.company_oddaja_ddv(found)
             # Samo predlaga obdobje, če podatki še niso naloženi.
-            if self.dataset is None:
-                bounds = gui_helpers.period_bounds_for_oddaja_ddv(oddaja) if oddaja else None
-                if bounds:
-                    self.period_from, self.period_to = bounds
-                    self.period_label = gui_helpers.period_label_for_range(*bounds)
+            self._suggest_period_from_company()
         return self._state()
 
     def set_period(self, period_from: str = "", period_to: str = "", label: str = "") -> dict[str, Any]:
@@ -1710,7 +1733,15 @@ class KirKprService:
         self.config["ui_theme"] = value
         self._persist_config()
         state = self._state()
-        state["msg"] = "Videz: " + ("temna" if value == "dark" else "svetla") + " tema."
+        state["msg"] = "Tema: " + ("temna" if value == "dark" else "svetla") + "."
+        return state
+
+    def set_look(self, look: str = "t5") -> dict[str, Any]:
+        value = "t4" if str(look or "").strip().lower() == "t4" else "t5"
+        self.config["ui_look"] = value
+        self._persist_config()
+        state = self._state()
+        state["msg"] = "Videz: " + ("Trops 4 (klasičen)" if value == "t4" else "Trops 5 (nov)") + "."
         return state
 
     def save_accounts(self) -> dict[str, Any]:

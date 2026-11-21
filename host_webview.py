@@ -432,6 +432,7 @@ def _actions(s: KirKprService) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
         "delete_session": lambda b: s.delete_session(int(b.get("id") or 0)),
         "set_auto_reopen": lambda b: s.set_auto_reopen(bool(b.get("enabled"))),
         "set_theme": lambda b: s.set_theme(str(b.get("theme") or "light")),
+        "set_look": lambda b: s.set_look(str(b.get("look") or "t5")),
         "save_accounts": lambda b: s.save_accounts(),
         "connect_minimax_api": lambda b: s.connect_minimax_api(str(b.get("settings_path") or b.get("path") or "")),
         "set_api_options": lambda b: s.set_api_options(
