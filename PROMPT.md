@@ -14,7 +14,7 @@ Zapisano 21. 11. 2026 po navodilih Braca Mihelja.
 
 - Pomočnik se imenuje »programiranje« in pomaga pri programih v `D:\PISARNA\Python`, tudi pri KirKpr.
 - Trenutna mapa programa je `D:\PISARNA\Python\KirKpr` (21. 11. 2026 preimenovana iz `KirKpr_convert_cursor`).
-- Aplikacija je **KIR/KPR → Minimax Studio**, trenutna različica `3.0.191`.
+- Aplikacija je **KIR/KPR → Minimax Studio**, trenutna različica `4.0.0`.
 - Lokalni git je uveden. Oddaljeni repozitorij na GitHubu (`bracomihelj-creator/KirKpr`) bo dodan, ko ga lastnik ustvari.
 
 ## 3. Podatki in skrivnosti

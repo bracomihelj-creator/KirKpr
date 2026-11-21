@@ -1,7 +1,7 @@
 # POROČILO — KirKpr (ureditev mape in lokalni git)
 
 **Datum:** 21. 11. 2026 (Europe/Warsaw) · **Mapa:** `D:\PISARNA\Python\KirKpr` (preimenovana iz `KirKpr_convert_cursor`)
-**Verzija programa:** 3.0.192 · **Vmesnik:** Tkinter
+**Verzija programa:** 4.0.0 · **Vmesnik:** Tkinter
 
 ## 1. Kaj je bilo narejeno
 
@@ -59,3 +59,7 @@ Različica **3.0.192**. Poslovne logike, izračunov, API, XML, DDV-O in baze se 
 - Commite: `1720f63` (paleta in ttk slogi), `cba3ca6` (stikalo in oznake), ta zapis.
 - Preizkusi: `py_compile` in `ast.parse` sta v redu. `test_kirkpr_minimax.py` (brez zagona okna): 62 uspešnih, 5 preskočenih (ni priloge `04-06-2026.json`), 3 neuspehi v e-pošti/virmanu, ki niso povezani s preobleko in so bili že prej. Programa nisem zagnal, da se nastavitve in baza ne bi spremenile.
 - Potisk na GitHub še ni narejen.
+
+## 7. Različica 4.0.0 (21. 11. 2026)
+
+Številka različice je dvignjena z 3.0.192 na **4.0.0**. Videz in funkcije ostanejo enaki kot po preobleki Trops. Potisk na GitHub še ni narejen.
