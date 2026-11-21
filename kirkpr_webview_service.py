@@ -6,8 +6,9 @@ Samo kliče kirkpr_minimax_core, register podjetij in pomožne funkcije obdobja.
 """
 from __future__ import annotations
 
+import copy
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -15,7 +16,7 @@ import kirkpr_company_registry as registry
 import kirkpr_minimax_core as core
 import convert_KIrKpr_to_minimax as gui_helpers
 
-APP_VERSION = "5.0.01"
+APP_VERSION = "5.0.02"
 APP_TITLE = "KIR/KPR \u2192 Minimax Studio"
 APP_EDITION = "WebView2"
 
@@ -74,6 +75,11 @@ class KirKprService:
         self.search_ir = ""
         self.search_pr = ""
         self.search_ddvo = ""
+        self.account_catalog: dict[str, str] = {}
+        self.remember_customer = True
+        self.remember_supplier = True
+        self.working_dirty = False
+        self.pending_working_changes: list[str] = []
         self._reload_companies()
         self._restore_selected_company()
 
@@ -182,6 +188,7 @@ class KirKprService:
             "period_to": self.period_to.isoformat() if self.period_to else "",
             "period_label": self.period_label,
             "has_data": self.dataset is not None,
+            "working_dirty": self.working_dirty,
             "summary": summary,
             "paths": {
                 "config": str(self.config_path),
@@ -455,3 +462,346 @@ class KirKprService:
         if not path or not Path(path).is_file():
             return {"ok": False, "error": "Zadnja datoteka ni shranjena ali ne obstaja več.", "msg": "Zadnja datoteka ni shranjena ali ne obstaja več."}
         return self.load_source(path)
+
+    def _profile_config(self) -> dict[str, Any]:
+        if not self.selected_company:
+            return self.config
+        return core.company_profile(self.config, registry.company_key(self.selected_company))
+
+    def _mark_working_dirty(self, detail: str = "") -> None:
+        self.working_dirty = True
+        if detail:
+            self.pending_working_changes.append(detail)
+
+    def _persist_config(self) -> None:
+        core.save_config(self.config, self.config_path)
+
+    def _parse_row_id(self, row_id: str) -> tuple[str, int]:
+        text = str(row_id or "").strip()
+        if ":" not in text:
+            raise core.KirkprError("Manjka oznaka vrstice.")
+        book, _, raw_index = text.partition(":")
+        book = book.upper()
+        if book not in {"IR", "PR"}:
+            raise core.KirkprError("Oznaka vrstice mora biti IR ali PR.")
+        try:
+            index = int(raw_index)
+        except ValueError as exc:
+            raise core.KirkprError("Neveljavna oznaka vrstice.") from exc
+        return book, index
+
+    def _row_by_id(self, row_id: str) -> tuple[str, int, dict[str, Any]]:
+        if self.dataset is None:
+            raise core.KirkprError("Najprej odprite KIR/KPR datoteko.")
+        book, index = self._parse_row_id(row_id)
+        rows = self.dataset.kir if book == "IR" else self.dataset.kpr
+        if index < 0 or index >= len(rows):
+            raise core.KirkprError("Vrstica ne obstaja.")
+        return book, index, rows[index]
+
+    def _account_name(self, account: Any) -> str:
+        return self.account_catalog.get(str(account or "").strip(), "")
+
+    def _account_label(self, account: Any) -> str:
+        code = core.normalize_account_code(account)
+        name = self._account_name(code)
+        return f"{code} — {name}" if code and name else code
+
+    def _validated_account_code(self, value: Any) -> str:
+        catalog = self.account_catalog or None
+        return core.validate_minimax_account_code(value, catalog=catalog)
+
+    def account_choices(self, query: str = "") -> dict[str, Any]:
+        codes = list(gui_helpers.COMMON_PR_ACCOUNTS + gui_helpers.COMMON_IR_ACCOUNTS)
+        if self.dataset:
+            for row in (*self.dataset.kir, *self.dataset.kpr):
+                code = str(row.get("__konto__") or "").strip()
+                if code:
+                    codes.append(code)
+        for code in self.account_catalog:
+            codes.append(code)
+        unique: list[str] = []
+        seen: set[str] = set()
+        for code in codes:
+            normalized = core.normalize_account_code(code)
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            unique.append(normalized)
+
+        def sort_key(code: str) -> tuple[int, int, str]:
+            return (0, int(code), code) if code.isdigit() else (1, 0, code.casefold())
+
+        labels = [self._account_label(code) for code in sorted(unique, key=sort_key)]
+        terms = gui_helpers.ConverterApp._account_search_value(query).split() if query else []
+        if terms:
+            labels = [
+                label
+                for label in labels
+                if all(term in gui_helpers.ConverterApp._account_search_value(label) for term in terms)
+            ]
+        return {"ok": True, "rows": labels}
+
+    def _validated_document_changes(
+        self,
+        book: str,
+        row: Mapping[str, Any],
+        values: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        candidate = copy.deepcopy(dict(row))
+        changes: dict[str, Any] = {}
+        for field_name, raw in values.items():
+            entered = str(raw)
+            current = "" if row.get(field_name) is None else str(row.get(field_name))
+            if entered == current:
+                continue
+            if gui_helpers.is_money_field(book, field_name):
+                try:
+                    if core.decimal_value(entered) == core.decimal_value(row.get(field_name)):
+                        continue
+                except core.KirkprError:
+                    pass
+            normalized = core.update_working_row(book, candidate, field_name, entered)
+            changes[field_name] = normalized
+        return changes
+
+    def get_editor(self, row_id: str) -> dict[str, Any]:
+        book, index, row = self._row_by_id(row_id)
+        labels = gui_helpers.IR_FIELD_LABELS if book == "IR" else gui_helpers.PR_FIELD_LABELS
+        default_account = "7601" if book == "IR" else "4190"
+        account = str(row.get("__konto__") or default_account)
+        fields = []
+        for field_name, label in labels.items():
+            raw_value = row.get(field_name)
+            money = gui_helpers.is_money_field(book, field_name)
+            shown = gui_helpers.format_money(raw_value) if money else ("" if raw_value is None else str(raw_value))
+            ddvo = core.ddvo_codes_for_field(book, field_name)
+            fields.append({
+                "name": field_name,
+                "label": label,
+                "value": shown,
+                "money": money,
+                "vat_base": field_name in gui_helpers.VAT_BASE_RATE_FIELDS,
+                "ddvo": list(ddvo),
+            })
+        payload: dict[str, Any] = {
+            "ok": True,
+            "id": f"{book.lower()}:{index}",
+            "book": book,
+            "invoice": str(row.get("P3") or ""),
+            "party": str(row.get("P5") if book == "IR" else row.get("P6") or ""),
+            "account": account,
+            "account_label": self._account_label(account),
+            "account_name": self._account_name(account),
+            "description": str(row.get("__opis__") or row.get("P3") or ""),
+            "remember_rule": self.remember_customer if book == "IR" else self.remember_supplier,
+            "fields": fields,
+        }
+        if book == "PR":
+            metrics = core.pr_metrics(row)
+            payload["self_assessment"] = bool(metrics["self_assessment"])
+            payload["vat_deductible"] = bool(metrics["vat_deductible"])
+        return payload
+
+    def save_editor(self, row_id: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+        book, _index, row = self._row_by_id(row_id)
+        default_account = "7601" if book == "IR" else "4190"
+        account = self._validated_account_code(payload.get("account") or default_account)
+        description = str(payload.get("description") or "").strip()
+        remember_rule = bool(payload.get("remember_rule"))
+        values = payload.get("fields") if isinstance(payload.get("fields"), Mapping) else {}
+        document_changes = self._validated_document_changes(book, row, values)
+        validation_config = copy.deepcopy(self._profile_config())
+        core.remember_account(validation_config, book, row, account, supplier_rule=remember_rule)
+        core.remember_description(validation_config, book, row, description)
+        change_count = len(document_changes)
+        change_count += account != str(row.get("__konto__") or default_account)
+        change_count += description != str(row.get("__opis__") or row.get("P3") or "")
+        if book == "PR":
+            self_assessment = bool(payload.get("self_assessment"))
+            vat_deductible = bool(payload.get("vat_deductible"))
+            core.remember_self_assessment(validation_config, row, self_assessment, supplier_rule=remember_rule)
+            core.remember_vat_deductible(validation_config, row, vat_deductible, supplier_rule=remember_rule)
+            change_count += self_assessment != core.is_self_assessment(row)
+            change_count += vat_deductible != core.vat_is_deductible(row)
+        if not change_count:
+            state = self._state()
+            state["msg"] = f"{book} {row.get('P3')}: ni sprememb za začasno shranjevanje."
+            return state
+        document_name = str(row.get("P3") or "brez številke")
+        profile = self._profile_config()
+        core.remember_account(profile, book, row, account, supplier_rule=remember_rule)
+        core.remember_description(profile, book, row, description)
+        row.update(document_changes)
+        row["__konto__"] = account
+        row["__opis__"] = description
+        if book == "PR":
+            core.remember_self_assessment(profile, row, self_assessment, supplier_rule=remember_rule)
+            core.remember_vat_deductible(profile, row, vat_deductible, supplier_rule=remember_rule)
+            row["__samoobdavcitev__"] = self_assessment
+            row["__ddv_se_odbija__"] = vat_deductible
+            row["__vat_offer_from__"] = "dobavitelj" if remember_rule else "ta listina"
+            self.config["last_account"] = account
+            self.remember_supplier = remember_rule
+        else:
+            self.config["last_ir_account"] = account
+            self.remember_customer = remember_rule
+        detail = f"{book} {document_name}: {change_count} sprememb, konto {account}"
+        self._mark_working_dirty(detail)
+        self._persist_config()
+        state = self._state()
+        state["msg"] = (
+            f"{book} {document_name}: {change_count} sprememb je začasno shranjenih. "
+            "Za generalni zapis kliknite »Shrani delovno kopijo«."
+        )
+        return state
+
+    def apply_accounts(
+        self,
+        book: str,
+        ids: list[str],
+        account: str,
+        *,
+        remember_rule: bool = False,
+        persist_working: bool = True,
+    ) -> dict[str, Any]:
+        if self.dataset is None:
+            return {"ok": False, "error": "Najprej odprite KIR/KPR datoteko.", "msg": "Najprej odprite KIR/KPR datoteko."}
+        book = str(book or "").upper()
+        if book not in {"IR", "PR"}:
+            return {"ok": False, "error": "Knjiga mora biti IR ali PR.", "msg": "Knjiga mora biti IR ali PR."}
+        selected = [str(item) for item in (ids or []) if str(item).strip()]
+        if not selected:
+            msg = "Najprej izberite enega ali več " + ("izdanih" if book == "IR" else "prejetih") + " računov."
+            return {"ok": False, "error": msg, "msg": msg}
+        account_code = self._validated_account_code(account)
+        changed = 0
+        profile = self._profile_config()
+        for row_id in selected:
+            row_book, _index, row = self._row_by_id(row_id)
+            if row_book != book:
+                raise core.KirkprError(f"Vrstica {row_id} ni v knjigi {book}.")
+            core.remember_account(profile, book, row, account_code, supplier_rule=remember_rule)
+            row["__konto__"] = account_code
+            changed += 1
+        if book == "IR":
+            self.config["last_ir_account"] = account_code
+            self._profile_config()["last_ir_account"] = account_code
+            self.remember_customer = remember_rule
+        else:
+            self.config["last_account"] = account_code
+            self._profile_config()["last_account"] = account_code
+            self.remember_supplier = remember_rule
+        self._mark_working_dirty(f"{changed} {book} → konto {account_code}")
+        self._persist_config()
+        saved = None
+        if persist_working:
+            saved = self.save_working_copy(quiet=True)
+        state = self._state()
+        state["changed"] = changed
+        if saved:
+            state["working_copy"] = str(saved)
+            state["msg"] = f"Konto {account_code} je nastavljen na {changed} {book} in samodejno shranjen."
+        else:
+            state["msg"] = f"Konto {account_code} je nastavljen na {changed} {book}."
+        return state
+
+    def set_vat_deductible(self, ids: list[str], enabled: bool, *, persist_working: bool = True) -> dict[str, Any]:
+        if self.dataset is None:
+            return {"ok": False, "error": "Najprej odprite KIR/KPR datoteko.", "msg": "Najprej odprite KIR/KPR datoteko."}
+        selected = [str(item) for item in (ids or []) if str(item).strip()]
+        if not selected:
+            msg = "Najprej izberite enega ali več prejetih računov."
+            return {"ok": False, "error": msg, "msg": msg}
+        changed = 0
+        profile = self._profile_config()
+        for row_id in selected:
+            book, _index, row = self._row_by_id(row_id)
+            if book != "PR":
+                raise core.KirkprError("DDV se odbija velja samo za prejete račune.")
+            row["__ddv_se_odbija__"] = bool(enabled)
+            core.remember_vat_deductible(profile, row, enabled)
+            changed += 1
+        self._mark_working_dirty(f"{changed} PR; DDV se odbija {'DA' if enabled else 'NE'}")
+        self._persist_config()
+        if persist_working:
+            self.save_working_copy(quiet=True)
+        state = self._state()
+        state["changed"] = changed
+        state["msg"] = (
+            f"DDV se odbija = {'DA' if enabled else 'NE'} je nastavljeno na {changed} PR"
+            + (" in samodejno shranjeno." if persist_working else ".")
+        )
+        return state
+
+    def compute_vat_base(self, field_name: str, value: Any) -> dict[str, Any]:
+        rate_info = gui_helpers.VAT_BASE_RATE_FIELDS.get(str(field_name or "").upper())
+        if rate_info is None:
+            return {"ok": False, "error": "To polje nima stopnje za izračun osnove.", "msg": "To polje nima stopnje za izračun osnove."}
+        rate, rate_label = rate_info
+        vat = core.decimal_value(value)
+        if vat == 0:
+            msg = f"{field_name}: DDV {rate_label} je 0 — osnove ni."
+            return {"ok": False, "error": msg, "msg": msg}
+        base = (vat / rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        return {
+            "ok": True,
+            "field": field_name,
+            "rate_label": rate_label,
+            "vat": gui_helpers.format_money(vat),
+            "base": gui_helpers.format_money(base),
+            "base_raw": f"{base:.2f}",
+            "msg": f"- osnova {rate_label} = {gui_helpers.format_money(base)} / DDV {rate_label} = {gui_helpers.format_money(vat)}",
+        }
+
+    def save_working_copy(self, *, quiet: bool = True, target: str = "") -> Path | None:
+        if self.dataset is None:
+            if quiet:
+                return None
+            raise core.KirkprError("Najprej odprite KIR/KPR datoteko.")
+        if target:
+            path = Path(target)
+        else:
+            source_stem = registry.safe_name(self.dataset.source_path.stem, "KIRKPR")
+            filename = f"{source_stem}_MINIMAX_UREJENO.json"
+            paths = None
+            if self.selected_company:
+                start = self.period_from.isoformat() if self.period_from else self.dataset.period_from
+                end = self.period_to.isoformat() if self.period_to else self.dataset.period_to
+                try:
+                    paths = registry.company_paths(
+                        self.selected_company,
+                        start,
+                        end,
+                        trops_root=registry.resolve_trops_root(str(self.config.get("trops_root") or "") or None),
+                    )
+                except ValueError:
+                    paths = None
+            path = (paths.working_copies / filename) if paths else (self.dataset.source_path.parent / filename)
+        company_info: dict[str, Any] = {}
+        if self.selected_company:
+            company_info = {
+                "Zšt": registry.company_zst(self.selected_company),
+                "Kratko ime": registry.company_name(self.selected_company),
+                "DAVČNA": registry.company_tax_number(self.selected_company),
+                "Org_ID": registry.company_org_id(self.selected_company),
+            }
+        saved = core.save_working_copy(self.dataset, path, company=company_info)
+        profile = self._profile_config()
+        profile["last_working_copy"] = str(saved)
+        self.config["last_working_copy"] = str(saved)
+        self.working_dirty = False
+        self.pending_working_changes.clear()
+        self._persist_config()
+        return saved
+
+    def save_working_copy_action(self, target: str = "") -> dict[str, Any]:
+        saved = self.save_working_copy(quiet=False, target=target)
+        state = self._state()
+        if saved is None:
+            state["ok"] = False
+            state["error"] = state["msg"] = "Delovne kopije ni bilo mogoče shraniti."
+            return state
+        state["working_copy"] = str(saved)
+        state["msg"] = f"Delovna kopija je shranjena: {saved}. Izvorna datoteka je nespremenjena."
+        return state

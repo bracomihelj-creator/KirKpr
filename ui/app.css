@@ -323,3 +323,23 @@ details.savedMaps{margin-top:12px}details.savedMaps summary{cursor:pointer;font-
 #statusLine{color:var(--muted);font-size:12.5px}
 #companySearch{width:100%;height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;margin-bottom:6px}
 .warnRow td:first-child{box-shadow:inset 3px 0 0 var(--warn)}
+
+.bookTools{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-left:8px}
+#accountBox{height:34px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:0 10px;width:140px;color:var(--text)}
+.chk{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-2);white-space:nowrap}
+.selCell{width:28px}
+.grid tr.selected td{background:var(--accent-soft)}
+.grid tbody tr{cursor:pointer}
+.dirtyDot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--warn);margin-right:6px}
+.modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:50;overflow:auto}
+.modalCard{width:min(980px,100%);background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 80px)}
+.modalHead{display:flex;justify-content:space-between;align-items:flex-start;padding:16px 18px 10px;border-bottom:1px solid var(--line)}
+.modalHead h2{margin:0;font-size:18px}
+.modalBody{padding:14px 18px;overflow:auto;display:flex;flex-direction:column;gap:12px}
+.modalFoot{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--line)}
+.editorGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px}
+.editorMeta{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px}
+@media (max-width:800px){.editorGrid,.editorMeta{grid-template-columns:1fr}}
+.fld input,.fld textarea,.fld select{width:100%;height:34px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:0 10px;color:var(--text)}
+.fld input.num{text-align:right;font-variant-numeric:tabular-nums}
+.fld.vatBase input{box-shadow:inset 3px 0 0 var(--accent)}

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>KIR/KPR → Minimax Studio 5.0.01</title>
+  <title>KIR/KPR → Minimax Studio 5.0.02</title>
   <link rel="stylesheet" href="/ui/app.css">
 </head>
 <body>
@@ -28,7 +28,7 @@
   <aside class="sidebar" id="sidebar">
     <div class="brand">
       <div class="logo">K</div>
-      <div class="brandText"><b>KirKpr</b><span id="brandVer">5.0.01</span></div>
+      <div class="brandText"><b>KirKpr</b><span id="brandVer">5.0.02</span></div>
     </div>
     <nav class="nav" id="nav">
       <div class="navLbl">Evidence</div>
@@ -96,6 +96,15 @@
           <input id="searchBox" placeholder="Išči…" autocomplete="off">
         </div>
       </div>
+      <div class="bookTools" id="bookTools">
+        <input id="accountBox" list="accountList" placeholder="Konto" autocomplete="off">
+        <datalist id="accountList"></datalist>
+        <label class="chk"><input type="checkbox" id="rememberRule" checked> Zapomni si za partnerja</label>
+        <button class="btn" type="button" id="applyAccountBtn">Uporabi konto</button>
+        <button class="btn ghost" type="button" id="vatOnBtn">DDV se odbija: DA</button>
+        <button class="btn ghost" type="button" id="vatOffBtn">DDV se odbija: NE</button>
+        <button class="btn" type="button" id="saveWorkingBtn">Shrani delovno kopijo</button>
+      </div>
       <span class="muted" id="statusLine"></span>
     </div>
 
@@ -128,10 +137,27 @@
     </div>
     <div class="page hidden" data-page="about" id="page-about">
       <div style="padding:8px 22px 22px;max-width:720px" id="aboutBox">
-        <p><b>KIR/KPR → Minimax Studio 5.0.01</b> — vmesnik WebView2 po zgledu Trops Studio 5.</p>
+        <p><b>KIR/KPR → Minimax Studio 5.0.02</b> — vmesnik WebView2 po zgledu Trops Studio 5.</p>
         <p>Tk vmesnik 4.0.3 ostane v mapi (KirKpr_V4.0.3.pyw), dokler 5.x ne pokrije vseh zaslonov.</p>
         <p>Izračuni DDV, XML in oddaja v Minimax se v tej različici ne spreminjajo.</p>
       </div>
+    </div>
+  </div>
+</div>
+
+<div id="editorModal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modalCard">
+    <div class="modalHead">
+      <div>
+        <h2 id="editorTitle">Urejanje računa</h2>
+        <p class="muted" id="editorSub"></p>
+      </div>
+      <button class="iconBtn" type="button" id="editorClose" title="Zapri">×</button>
+    </div>
+    <div class="modalBody" id="editorBody"></div>
+    <div class="modalFoot">
+      <button class="btn ghost" type="button" id="editorCancel">Prekliči</button>
+      <button class="btn" type="button" id="editorSave">Začasno shrani</button>
     </div>
   </div>
 </div>

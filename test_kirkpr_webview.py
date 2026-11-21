@@ -63,11 +63,11 @@ class WebviewServiceTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def test_version_is_5_0_01(self) -> None:
-        self.assertEqual("5.0.01", APP_VERSION)
+    def test_version_is_5_0_02(self) -> None:
+        self.assertEqual("5.0.02", APP_VERSION)
         boot = self.svc.boot()
         self.assertTrue(boot["ok"])
-        self.assertEqual("5.0.01", boot["version"])
+        self.assertEqual("5.0.02", boot["version"])
         self.assertFalse(boot["has_data"])
 
     def test_load_source_lists_ir_pr_and_ddvo(self) -> None:
@@ -119,6 +119,54 @@ class WebviewServiceTests(unittest.TestCase):
             self.assertNotEqual(project_cfg.resolve(), self.config_path.resolve())
         self.assertNotEqual(before, self.config_path.read_text(encoding="utf-8"))
 
+
+
+    def test_apply_account_and_editor_on_temp_files_only(self) -> None:
+        project_cfg = Path(r"D:\\PISARNA\\Python\\KirKpr\\convert_KIrKpr_to_minimax_config.json")
+        project_before = project_cfg.read_bytes() if project_cfg.is_file() else None
+        self.svc.load_source(str(self.sample))
+        result = self.svc.apply_accounts("IR", ["ir:0"], "7610", remember_rule=True, persist_working=True)
+        self.assertTrue(result["ok"])
+        self.assertEqual("7610", self.svc.dataset.kir[0]["__konto__"])
+        self.assertEqual("7610", self.svc.list_ir()["rows"][0]["account"])
+        self.assertIn("7610", json.dumps(json.loads(self.config_path.read_text(encoding="utf-8")), ensure_ascii=False))
+        working = self.sample.parent / "sample_MINIMAX_UREJENO.json"
+        self.assertTrue(working.is_file())
+        self.assertNotEqual(working.resolve(), self.sample.resolve())
+
+        editor = self.svc.get_editor("pr:0")
+        self.assertTrue(editor["ok"])
+        self.assertEqual("PR-1", editor["invoice"])
+        self.assertTrue(any(f["name"] == "P8" for f in editor["fields"]))
+        saved = self.svc.save_editor(
+            "pr:0",
+            {
+                "account": "4190",
+                "description": "Popravljen opis PR-1",
+                "remember_rule": True,
+                "self_assessment": False,
+                "vat_deductible": False,
+                "fields": {"P8": "250,00"},
+            },
+        )
+        self.assertTrue(saved["ok"])
+        self.assertTrue(saved["working_dirty"])
+        self.assertEqual("Popravljen opis PR-1", self.svc.dataset.kpr[0]["__opis__"])
+        self.assertFalse(self.svc.dataset.kpr[0]["__ddv_se_odbija__"])
+
+        vat = self.svc.set_vat_deductible(["pr:0"], True, persist_working=False)
+        self.assertTrue(vat["ok"])
+        self.assertTrue(self.svc.dataset.kpr[0]["__ddv_se_odbija__"])
+
+        base = self.svc.compute_vat_base("P14", "22,00")
+        self.assertTrue(base["ok"])
+        self.assertEqual("100,00", base["base"])
+
+        with self.assertRaises(core.KirkprError):
+            self.svc.apply_accounts("IR", ["ir:0"], "417", persist_working=False)
+
+        if project_before is not None:
+            self.assertEqual(project_before, project_cfg.read_bytes())
 
 if __name__ == "__main__":
     unittest.main()
@@ -183,7 +231,7 @@ class HostHttpTests(unittest.TestCase):
     def test_boot_and_load_source_via_http(self) -> None:
         code, body = self._open("/api/boot")
         self.assertEqual(200, code)
-        self.assertEqual("5.0.01", body["version"])
+        self.assertEqual("5.0.02", body["version"])
         code, body = self._open("/api/action", {"name": "load_source", "path": str(self.sample), "sync": True})
         self.assertEqual(200, code)
         self.assertTrue(body.get("has_data"))
@@ -191,3 +239,23 @@ class HostHttpTests(unittest.TestCase):
         self.assertEqual(200, code)
         self.assertEqual(1, ir["visible"])
         self.assertEqual("IR-1", ir["rows"][0]["invoice"])
+
+    def test_editor_and_apply_via_http(self) -> None:
+        code, body = self._open("/api/action", {"name": "load_source", "path": str(self.sample), "sync": True})
+        self.assertEqual(200, code)
+        code, editor = self._open("/api/row?id=ir:0")
+        self.assertEqual(200, code)
+        self.assertEqual("IR-1", editor["invoice"])
+        code, applied = self._open("/api/action", {
+            "name": "apply_accounts",
+            "book": "IR",
+            "ids": ["ir:0"],
+            "account": "7620",
+            "remember_rule": True,
+            "persist_working": False,
+        })
+        self.assertEqual(200, code)
+        self.assertTrue(applied.get("ok"))
+        code, ir = self._open("/api/ir")
+        self.assertEqual("7620", ir["rows"][0]["account"])
+

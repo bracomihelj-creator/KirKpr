@@ -27,6 +27,7 @@ HOST = "127.0.0.1"
 WEBVIEW_PROFILE_DIR = Path.home() / "AppData" / "Local" / "KirKpr" / "WebViewProfile"
 
 from kirkpr_webview_jobs import JobManager  # noqa: E402
+import kirkpr_minimax_core as core  # noqa: E402
 from kirkpr_webview_service import APP_TITLE, APP_VERSION, KirKprService  # noqa: E402
 
 log = logging.getLogger("kirkpr.host")
@@ -153,6 +154,8 @@ class Handler(BaseHTTPRequestHandler):
             self._error(404, str(exc))
         elif isinstance(exc, RuntimeError) and "Druga naloga" in str(exc):
             self._error(409, str(exc))
+        elif isinstance(exc, core.KirkprError):
+            self._error(400, str(exc))
         else:
             log.error("Napaka v API: %s\n%s", exc, traceback.format_exc())
             self._error(500, f"Notranja napaka: {exc}")
@@ -217,6 +220,12 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/ddvo":
                 self._json_resp(200, s.ddvo((q.get("q") or [""])[0]))
                 return
+            if path == "/api/row":
+                self._json_resp(200, s.get_editor((q.get("id") or [""])[0]))
+                return
+            if path == "/api/accounts":
+                self._json_resp(200, s.account_choices((q.get("q") or [""])[0]))
+                return
             if path == "/api/paths":
                 self._json_resp(200, s.path_settings())
                 return
@@ -269,6 +278,15 @@ class Handler(BaseHTTPRequestHandler):
                     ),
                 )
                 return
+            if path == "/api/row/save":
+                self._json_resp(200, s.save_editor(str(body.get("id") or ""), body))
+                return
+            if path == "/api/vat-base":
+                self._json_resp(
+                    200,
+                    s.compute_vat_base(str(body.get("field") or ""), body.get("value")),
+                )
+                return
             self._error(404, f"Neznan POST: {path}")
         except Exception as exc:
             self._exception(exc)
@@ -287,6 +305,19 @@ def _actions(s: KirKprService) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
         "reset_period": lambda b: s.reset_period(),
         "load_source": lambda b: s.load_source(str(b.get("path") or "")),
         "open_last_source": lambda b: s.open_last_source(),
+        "apply_accounts": lambda b: s.apply_accounts(
+            str(b.get("book") or ""),
+            list(b.get("ids") or []),
+            str(b.get("account") or ""),
+            remember_rule=bool(b.get("remember_rule")),
+            persist_working=b.get("persist_working", True),
+        ),
+        "set_vat_deductible": lambda b: s.set_vat_deductible(
+            list(b.get("ids") or []),
+            bool(b.get("enabled")),
+            persist_working=b.get("persist_working", True),
+        ),
+        "save_working_copy": lambda b: s.save_working_copy_action(str(b.get("path") or b.get("target") or "")),
     }
 
 

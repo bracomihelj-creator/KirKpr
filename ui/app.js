@@ -1,6 +1,6 @@
-/* KirKpr 5.0.01 — vmesnik WebView2 (klici HTTP API / pywebview Bridge). */
+/* KirKpr 5.0.02 — vmesnik WebView2 (klici HTTP API / pywebview Bridge). */
 (function () {
-  var state = { view: "ir", boot: null, companies: [] };
+  var state = { view: "ir", boot: null, companies: [], selected: {}, editor: null };
   var titles = {
     ir: "Izdani računi",
     pr: "Prejeti računi",
@@ -55,10 +55,24 @@
     return Promise.resolve("");
   }
 
+  function selectedIds() {
+    return Object.keys(state.selected[state.view] || {});
+  }
+
+  function setSelected(view, id, on) {
+    if (!state.selected[view]) state.selected[view] = {};
+    if (on) state.selected[view][id] = true;
+    else delete state.selected[view][id];
+  }
+
   function applyState(s) {
     if (!s) return;
+    if (s.ok === false) {
+      toast(s.msg || s.error || "Napaka.", true);
+      return;
+    }
     state.boot = s;
-    $("brandVer").textContent = s.version || "5.0.01";
+    $("brandVer").textContent = s.version || "5.0.02";
     var company = s.company;
     $("companyLabel").textContent = company ? ((company.zst ? company.zst + " · " : "") + (company.name || company.key)) : "Ni izbrano";
     $("periodLabel").textContent = s.period_label || (s.period_from ? (s.period_from + " – " + s.period_to) : "—");
@@ -78,8 +92,15 @@
     if (s.period_label || s.period_from) crumb.push(s.period_label || (s.period_from + " – " + s.period_to));
     if (sum.source_name) crumb.push(sum.source_name);
     $("crumbs").textContent = crumb.join(" · ") || "Izberi podjetje in odpri KIR/KPR datoteko.";
-    $("statusLine").textContent = s.msg || (s.has_data ? "Podatki so naloženi." : "Ni naloženih podatkov.");
+    var dirty = s.working_dirty ? "Neshranjeni popravki. " : "";
+    $("statusLine").textContent = dirty + (s.msg || (s.has_data ? "Podatki so naloženi." : "Ni naloženih podatkov."));
     if (s.msg) toast(s.msg, s.ok === false);
+    var about = $("aboutBox");
+    if (about) {
+      about.innerHTML = "<p><b>KIR/KPR → Minimax Studio " + (s.version || "") + "</b> — vmesnik WebView2 po zgledu Trops Studio 5.</p>" +
+        "<p>Tk vmesnik 4.0.3 ostane v mapi (KirKpr_V4.0.3.pyw), dokler 5.x ne pokrije vseh zaslonov.</p>" +
+        "<p>Izračuni DDV, XML in oddaja v Minimax se v tej različici ne spreminjajo.</p>";
+    }
   }
 
   function renderCompanies(rows) {
@@ -106,19 +127,27 @@
     });
   }
 
-  function renderTable(table, columns, rows, moneyCols) {
+  function renderTable(table, columns, rows, moneyCols, selectable) {
     moneyCols = moneyCols || {};
     var html = "<thead><tr>";
+    if (selectable) html += "<th class=\"selCell\"></th>";
     columns.forEach(function (col) {
       html += "<th" + (moneyCols[col.key] ? " class=\"num\"" : "") + ">" + col.label + "</th>";
     });
     html += "</tr></thead><tbody>";
     if (!rows || !rows.length) {
-      html += "<tr><td class=\"empty\" colspan=\"" + columns.length + "\">Ni vrstic za prikaz.</td></tr>";
+      html += "<tr><td class=\"empty\" colspan=\"" + (columns.length + (selectable ? 1 : 0)) + "\">Ni vrstic za prikaz.</td></tr>";
     } else {
       rows.forEach(function (row) {
-        var cls = row.tag === "tax_only" || row.tag === "vat_not_deducted" ? " class=\"warnRow\"" : "";
-        html += "<tr" + cls + ">";
+        var id = row.id || "";
+        var chosen = !!(state.selected[state.view] && state.selected[state.view][id]);
+        var cls = [];
+        if (row.tag === "tax_only" || row.tag === "vat_not_deducted") cls.push("warnRow");
+        if (chosen) cls.push("selected");
+        html += "<tr data-id=\"" + escapeHtml(id) + "\"" + (cls.length ? " class=\"" + cls.join(" ") + "\"" : "") + ">";
+        if (selectable) {
+          html += "<td class=\"selCell\"><input type=\"checkbox\" class=\"rowChk\"" + (chosen ? " checked" : "") + "></td>";
+        }
         columns.forEach(function (col) {
           var val = row[col.key] == null ? "" : String(row[col.key]);
           html += "<td" + (moneyCols[col.key] ? " class=\"num\"" : "") + ">" + escapeHtml(val) + "</td>";
@@ -128,10 +157,38 @@
     }
     html += "</tbody>";
     table.innerHTML = html;
+    if (selectable) bindTableSelection(table);
+  }
+
+  function bindTableSelection(table) {
+    table.querySelectorAll("tbody tr[data-id]").forEach(function (tr) {
+      var id = tr.getAttribute("data-id");
+      var chk = tr.querySelector(".rowChk");
+      tr.addEventListener("click", function (ev) {
+        if (ev.target.classList.contains("rowChk")) return;
+        var on = !(state.selected[state.view] && state.selected[state.view][id]);
+        if (!ev.ctrlKey && !ev.metaKey && ev.target.tagName !== "INPUT") {
+          if (!ev.shiftKey) {
+            /* toggle only this row when clicking the row */
+          }
+        }
+        setSelected(state.view, id, on);
+        tr.classList.toggle("selected", on);
+        if (chk) chk.checked = on;
+      });
+      tr.addEventListener("dblclick", function () { openEditor(id); });
+      if (chk) {
+        chk.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          setSelected(state.view, id, chk.checked);
+          tr.classList.toggle("selected", chk.checked);
+        });
+      }
+    });
   }
 
   function escapeHtml(text) {
-    return text.replace(/[&<>\"']/g, function (ch) {
+    return String(text).replace(/[&<>\"']/g, function (ch) {
       return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[ch];
     });
   }
@@ -160,18 +217,39 @@
     { key: "value", label: "Zaokroženo" }, { key: "status", label: "Status" }
   ];
 
+  function syncBookTools() {
+    var book = state.view === "ir" || state.view === "pr";
+    $("bookTools").classList.toggle("hidden", !book);
+    $("vatOnBtn").classList.toggle("hidden", state.view !== "pr");
+    $("vatOffBtn").classList.toggle("hidden", state.view !== "pr");
+    if (book) loadAccounts();
+  }
+
+  function loadAccounts() {
+    api("/api/accounts").then(function (data) {
+      var list = $("accountList");
+      list.innerHTML = "";
+      (data.rows || []).forEach(function (label) {
+        var opt = document.createElement("option");
+        opt.value = label;
+        list.appendChild(opt);
+      });
+    }).catch(function () {});
+  }
+
   function reloadView() {
     var q = $("searchBox").value || "";
     var view = state.view;
+    syncBookTools();
     if (view === "ir") {
       return api("/api/ir?q=" + encodeURIComponent(q)).then(function (data) {
-        renderTable($("tblIr"), IR_COLS, data.rows || [], MONEY);
+        renderTable($("tblIr"), IR_COLS, data.rows || [], MONEY, true);
         $("statusLine").textContent = data.has_data ? ("Prikazanih IR: " + data.visible + " / " + data.count) : "Ni naloženih podatkov.";
       });
     }
     if (view === "pr") {
       return api("/api/pr?q=" + encodeURIComponent(q)).then(function (data) {
-        renderTable($("tblPr"), PR_COLS, data.rows || [], MONEY);
+        renderTable($("tblPr"), PR_COLS, data.rows || [], MONEY, true);
         $("statusLine").textContent = data.has_data ? ("Prikazanih PR: " + data.visible + " / " + data.count) : "Ni naloženih podatkov.";
       });
     }
@@ -184,7 +262,7 @@
             " · Kontrola " + (data.control_ok ? "OK" : ("razlika " + data.control_difference));
         }
         $("ddvoMeta").textContent = meta;
-        renderTable($("tblDdvo"), DDVO_COLS, data.fields || [], MONEY);
+        renderTable($("tblDdvo"), DDVO_COLS, data.fields || [], MONEY, false);
         $("statusLine").textContent = data.has_data ? ("Polj: " + (data.fields || []).length) : "Ni naloženih podatkov.";
       });
     }
@@ -211,6 +289,81 @@
     reloadView().catch(function (e) { toast(e.message, true); });
   }
 
+  function closeEditor() {
+    $("editorModal").classList.add("hidden");
+    state.editor = null;
+  }
+
+  function openEditor(id) {
+    api("/api/row?id=" + encodeURIComponent(id)).then(function (data) {
+      if (data.ok === false) throw new Error(data.msg || data.error || "Urejevalnika ni mogoče odpreti.");
+      state.editor = data;
+      $("editorTitle").textContent = (data.book === "IR" ? "Izdani račun" : "Prejeti račun") + " " + (data.invoice || "");
+      $("editorSub").textContent = (data.party || "") + " · Spremembe veljajo za delovno kopijo; izvor ostane nespremenjen.";
+      var html = "<div class=\"editorMeta\">";
+      html += "<label class=\"fld\">Konto<input id=\"edAccount\" list=\"accountList\" value=\"" + escapeHtml(data.account_label || data.account || "") + "\"></label>";
+      html += "<label class=\"fld\">Opis knjižbe<input id=\"edDesc\" value=\"" + escapeHtml(data.description || "") + "\"></label>";
+      html += "</div>";
+      html += "<label class=\"chk\"><input type=\"checkbox\" id=\"edRemember\"" + (data.remember_rule ? " checked" : "") + "> Zapomni si za partnerja</label>";
+      if (data.book === "PR") {
+        html += "<div class=\"popRow\">";
+        html += "<label class=\"chk\"><input type=\"checkbox\" id=\"edSelf\"" + (data.self_assessment ? " checked" : "") + "> Samoobdavčitev</label>";
+        html += "<label class=\"chk\"><input type=\"checkbox\" id=\"edVat\"" + (data.vat_deductible ? " checked" : "") + "> DDV se odbija</label>";
+        html += "</div>";
+      }
+      html += "<div class=\"editorGrid\">";
+      (data.fields || []).forEach(function (field) {
+        var extra = field.vat_base ? " vatBase" : "";
+        var ddvo = field.ddvo && field.ddvo.length ? " · DDV-O " + field.ddvo.join(", ") : "";
+        html += "<label class=\"fld" + extra + "\" data-field=\"" + escapeHtml(field.name) + "\">" +
+          escapeHtml(field.name + " — " + field.label + ddvo) +
+          "<input" + (field.money ? " class=\"num\"" : "") + (field.vat_base ? " data-vat-base=\"1\"" : "") +
+          " data-name=\"" + escapeHtml(field.name) + "\" value=\"" + escapeHtml(field.value || "") + "\"></label>";
+      });
+      html += "</div>";
+      $("editorBody").innerHTML = html;
+      $("editorModal").classList.remove("hidden");
+      $("editorBody").querySelectorAll("input[data-vat-base]").forEach(function (inp) {
+        inp.title = "Dvojni klik: izračuna osnovo (DDV ÷ stopnja) in jo kopira v odložišče.";
+        inp.addEventListener("dblclick", function () {
+          post("/api/vat-base", { field: inp.getAttribute("data-name"), value: inp.value }).then(function (res) {
+            if (res.ok === false) throw new Error(res.msg || res.error);
+            var text = res.base || "";
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(text).catch(function () {});
+            }
+            toast((res.msg || "") + "  V odložišču: " + text);
+          }).catch(function (e) { toast(e.message, true); });
+        });
+      });
+    }).catch(function (e) { toast(e.message, true); });
+  }
+
+  function saveEditor() {
+    if (!state.editor) return;
+    var fields = {};
+    $("editorBody").querySelectorAll("input[data-name]").forEach(function (inp) {
+      fields[inp.getAttribute("data-name")] = inp.value;
+    });
+    var payload = {
+      id: state.editor.id,
+      account: $("edAccount").value,
+      description: $("edDesc").value,
+      remember_rule: $("edRemember").checked,
+      fields: fields
+    };
+    if (state.editor.book === "PR") {
+      payload.self_assessment = $("edSelf").checked;
+      payload.vat_deductible = $("edVat").checked;
+    }
+    post("/api/row/save", payload).then(function (s) {
+      if (s.ok === false) throw new Error(s.msg || s.error);
+      applyState(s);
+      closeEditor();
+      reloadView();
+    }).catch(function (e) { toast(e.message, true); });
+  }
+
   function pollJob(jobId) {
     return api("/api/job?id=" + encodeURIComponent(jobId)).then(function (job) {
       if (job.state === "running") {
@@ -229,6 +382,7 @@
   function openSource(path) {
     if (!path) return Promise.resolve();
     $("statusLine").textContent = "Nalagam…";
+    state.selected = {};
     return act("load_source", { path: path }).then(function (res) {
       if (res.job || res.id && res.state === "running") {
         return pollJob(res.job || res.id);
@@ -293,6 +447,69 @@
   $("searchBox").addEventListener("input", function () {
     clearTimeout($("searchBox")._t);
     $("searchBox")._t = setTimeout(function () { reloadView(); }, 200);
+  });
+  $("applyAccountBtn").addEventListener("click", function () {
+    var ids = selectedIds();
+    if (!ids.length) { toast("Najprej izberite enega ali več računov.", true); return; }
+    act("apply_accounts", {
+      book: state.view === "pr" ? "PR" : "IR",
+      ids: ids,
+      account: $("accountBox").value,
+      remember_rule: $("rememberRule").checked
+    }).then(function (s) {
+      if (s.ok === false) throw new Error(s.msg || s.error);
+      applyState(s);
+      reloadView();
+    }).catch(function (e) { toast(e.message, true); });
+  });
+  $("vatOnBtn").addEventListener("click", function () {
+    var ids = selectedIds();
+    if (!ids.length) { toast("Najprej izberite enega ali več prejetih računov.", true); return; }
+    act("set_vat_deductible", { ids: ids, enabled: true }).then(function (s) {
+      if (s.ok === false) throw new Error(s.msg || s.error);
+      applyState(s);
+      reloadView();
+    }).catch(function (e) { toast(e.message, true); });
+  });
+  $("vatOffBtn").addEventListener("click", function () {
+    var ids = selectedIds();
+    if (!ids.length) { toast("Najprej izberite enega ali več prejetih računov.", true); return; }
+    act("set_vat_deductible", { ids: ids, enabled: false }).then(function (s) {
+      if (s.ok === false) throw new Error(s.msg || s.error);
+      applyState(s);
+      reloadView();
+    }).catch(function (e) { toast(e.message, true); });
+  });
+  $("saveWorkingBtn").addEventListener("click", function () {
+    act("save_working_copy").then(function (s) {
+      if (s.ok === false) throw new Error(s.msg || s.error);
+      applyState(s);
+    }).catch(function (e) { toast(e.message, true); });
+  });
+  $("editorClose").addEventListener("click", closeEditor);
+  $("editorCancel").addEventListener("click", closeEditor);
+  $("editorSave").addEventListener("click", saveEditor);
+  $("editorModal").addEventListener("click", function (ev) {
+    if (ev.target === $("editorModal")) closeEditor();
+  });
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape" && !$("editorModal").classList.contains("hidden")) closeEditor();
+    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "a" && (state.view === "ir" || state.view === "pr")) {
+      var table = state.view === "ir" ? $("tblIr") : $("tblPr");
+      if (!table || $("editorModal") && !$("editorModal").classList.contains("hidden")) return;
+      ev.preventDefault();
+      table.querySelectorAll("tbody tr[data-id]").forEach(function (tr) {
+        var id = tr.getAttribute("data-id");
+        setSelected(state.view, id, true);
+        tr.classList.add("selected");
+        var chk = tr.querySelector(".rowChk");
+        if (chk) chk.checked = true;
+      });
+    }
+    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "s" && state.editor) {
+      ev.preventDefault();
+      saveEditor();
+    }
   });
   $("savePathsBtn").addEventListener("click", function () {
     post("/api/paths/save", {
