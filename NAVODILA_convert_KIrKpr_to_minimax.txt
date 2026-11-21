@@ -1,9 +1,8 @@
 KIR/KPR -> MINIMAX STUDIO (CURSOR)
 =================================
 
-Različica programa: 3.0.191. Zahtevana različica Chrome dodatka: 1.4.19.
-To je ločena Cursor izdaja v mapi KirKpr_convert_cursor.
-Originalna mapa KirKpr_convert ostane nespremenjena.
+Različica programa: 3.0.192. Zahtevana različica Chrome dodatka: 1.4.19.
+To je Cursor izdaja v mapi D:\PISARNA\Python\KirKpr (prej KirKpr_convert_cursor).
 
 Program ob zagonu sam zabeleži uporabljeno različico v
 version_history konfiguracije, zato se zgodovina nadgradenj vodi samodejno.
@@ -11,8 +10,14 @@ Ob vsaki spremembi kode se APP_VERSION zviša (pravilo .cursor/rules/version-bum
 
 RAZLIČICE
 ---------
-- KIR/KPR → Minimax Studio v3.0.191 je Cursor izdaja v tej mapi.
-- Produkcijski original ostaja v D:\PISARNA\Python\KirKpr_convert (v2.19).
+- KIR/KPR → Minimax Studio v3.0.192 je Cursor izdaja v tej mapi.
+
+DODANO V 3.0.192
+----------------
+- Preobleka vmesnika po zgledu Trops Studio 5 (svetlo ozadje, poudarek #4f46e5,
+  temna leva vrstica, pisava Segoe UI Variable / Segoe UI, gostejše vrstice).
+- Stari temni videz ostane: meni Videz → Klasični videz, nato ponovni zagon.
+  Ista izbira je v nastavitvi gui_theme (trops / classic).
 
 DODANO V 3.0.191
 ----------------

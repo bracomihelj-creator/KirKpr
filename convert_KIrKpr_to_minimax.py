@@ -35,7 +35,7 @@ import kirkpr_logging
 import minimax_api_client as minimax_api
 
 
-APP_VERSION = "3.0.191"
+APP_VERSION = "3.0.192"
 CHROME_EXTENSION_VERSION = "1.4.19"
 APP_TITLE = "KIR/KPR → Minimax Studio"
 APP_DISPLAY_TITLE = f"{APP_TITLE} v{APP_VERSION}"
@@ -778,7 +778,22 @@ class ConverterApp:
         self.format_var.set(f"Format: {self.dataset.source_format if self.dataset else '—'} • delovna kopija spremenjena")
 
     def _configure_gui_style(self) -> dict[str, str]:
-        return gui_style.configure_app_style(self.root)
+        theme = str(self.config.get("gui_theme") or gui_style.DEFAULT_THEME)
+        return gui_style.configure_app_style(self.root, theme=theme)
+
+    def _on_gui_theme_chosen(self) -> None:
+        theme = gui_style.normalize_theme(self.gui_theme_var.get())
+        self.gui_theme_var.set(theme)
+        self.config["gui_theme"] = theme
+        try:
+            self._save_session_state()
+        except OSError:
+            pass
+        messagebox.showinfo(
+            "Videz",
+            "Izbrani videz se v celoti uveljavi ob naslednjem zagonu programa.\n"
+            "Trops je svetla preobleka; klasični videz je prejšnji temni slog.",
+        )
 
     def _build_menu(self) -> None:
         menu = tk.Menu(self.root, tearoff=False)
@@ -821,6 +836,22 @@ class ConverterApp:
         )
         file_menu.add_command(label="Izhod", command=self.on_close)
         menu.add_cascade(label="Datoteka", menu=file_menu)
+
+        view_menu = tk.Menu(menu, tearoff=False)
+        self.gui_theme_var = tk.StringVar(value=gui_style.current_theme())
+        view_menu.add_radiobutton(
+            label="Videz Trops",
+            variable=self.gui_theme_var,
+            value="trops",
+            command=self._on_gui_theme_chosen,
+        )
+        view_menu.add_radiobutton(
+            label="Klasični videz",
+            variable=self.gui_theme_var,
+            value="classic",
+            command=self._on_gui_theme_chosen,
+        )
+        menu.add_cascade(label="Videz", menu=view_menu)
 
         help_menu = tk.Menu(menu, tearoff=False)
         help_menu.add_command(label="Podprti formati", command=self.show_format_help)
@@ -929,7 +960,7 @@ class ConverterApp:
             source_info,
             textvariable=self.company_var,
             bg=meta_bg,
-            fg="#d7d0ff",
+            fg=gui_style.COLORS["header_muted"],
             font=("Segoe UI", 9),
             anchor="w",
         ).pack(anchor="w")
@@ -948,13 +979,13 @@ class ConverterApp:
                 metadata,
                 textvariable=var,
                 bg=meta_bg,
-                fg="#c8bfff",
+                fg=gui_style.COLORS["header_muted"],
                 font=("Segoe UI", 8),
             ).pack(side="left", padx=(0, 14))
         xsd = core.find_xsd()
         badge_text = "XSD VKLOPLJEN" if xsd else "BREZ XSD"
         badge_color = self.colors["success"] if xsd else self.colors["warning"]
-        badge_fg = "#07150e" if xsd else "#1a1400"
+        badge_fg = self.colors["on_success"] if xsd else self.colors["on_warning"]
         tk.Label(
             source_meta,
             text=badge_text,
@@ -990,7 +1021,7 @@ class ConverterApp:
         self.workspace_paned.pack(fill="both", expand=True, pady=(10, 8))
         navigation = ttk.Frame(
             self.workspace_paned,
-            style="Card.TFrame",
+            style="Sidebar.TFrame",
             padding=(10, 10),
             width=self.navigation_width,
         )
@@ -1438,11 +1469,11 @@ class ConverterApp:
         )
 
     def _build_navigation(self, parent: ttk.Frame) -> None:
-        ttk.Label(parent, text="PODJETJA", style="CardMuted.TLabel").pack(anchor="w", padx=4, pady=(2, 5))
+        ttk.Label(parent, text="PODJETJA", style="SidebarMuted.TLabel").pack(anchor="w", padx=4, pady=(2, 5))
         company_search = ttk.Entry(parent, textvariable=self.company_search_var)
         company_search.pack(fill="x", padx=4, pady=(0, 6))
         company_search.bind("<KeyRelease>", lambda _event: self._populate_company_tree())
-        company_frame = ttk.Frame(parent, style="Card.TFrame")
+        company_frame = ttk.Frame(parent, style="Sidebar.TFrame")
         company_frame.pack(fill="x", padx=4, pady=(0, 9))
         self.company_tree = ttk.Treeview(
             company_frame,
@@ -1450,7 +1481,7 @@ class ConverterApp:
             show="headings",
             height=8,
             selectmode="browse",
-            style="Studio.Treeview",
+            style="Sidebar.Treeview",
         )
         company_scroll = ttk.Scrollbar(company_frame, orient="vertical", command=self.company_tree.yview)
         self.company_tree.configure(yscrollcommand=company_scroll.set)
@@ -1466,8 +1497,8 @@ class ConverterApp:
         self.company_tree.bind("<<TreeviewSelect>>", self._on_company_select)
         self._populate_company_tree()
 
-        ttk.Label(parent, text="VSEBINA", style="CardMuted.TLabel").pack(anchor="w", padx=4, pady=(2, 8))
-        self.nav_tree = ttk.Treeview(parent, show="tree", selectmode="browse", style="Studio.Treeview")
+        ttk.Label(parent, text="VSEBINA", style="SidebarMuted.TLabel").pack(anchor="w", padx=4, pady=(2, 8))
+        self.nav_tree = ttk.Treeview(parent, show="tree", selectmode="browse", style="Sidebar.Treeview")
         self.nav_tree.pack(fill="both", expand=True)
         data = self.nav_tree.insert("", "end", iid="nav:data", text="  KIR/KPR podatki", open=True)
         self.nav_tree.insert(data, "end", iid="nav:ir", text="  Izdani računi")
@@ -1488,7 +1519,7 @@ class ConverterApp:
         ttk.Label(
             parent,
             text="Izberite sklop. Drevo sledi aktivnemu zavihku.",
-            style="CardMuted.TLabel",
+            style="SidebarMuted.TLabel",
             wraplength=280,
             justify="left",
         ).pack(fill="x", padx=4, pady=(9, 2))
@@ -1825,10 +1856,7 @@ class ConverterApp:
                 "invoice", "party", "account_name",
             }
             tree.column(column, width=widths.get(column, 100), minwidth=48, anchor=anchor, stretch=stretch)
-        tree.tag_configure("odd", background="#101c31")
-        tree.tag_configure("tax_only", background="#574a21", foreground="#fff1bc")
-        tree.tag_configure("self_assessment", background="#2f2854", foreground="#eeeaff")
-        tree.tag_configure("vat_not_deducted", background="#5b3717", foreground="#fff0c7")
+        gui_style.apply_tree_tags(tree, "odd", "tax_only", "self_assessment", "vat_not_deducted")
         return tree
 
     def _pack_tab_search(
@@ -2102,9 +2130,7 @@ class ConverterApp:
         self.ddvo_tree.column("diff", anchor="e", stretch=False)
         self.ddvo_tree.column("code", anchor="center", stretch=False)
         self.ddvo_tree.column("status", anchor="center", stretch=False)
-        self.ddvo_tree.tag_configure("section_start", background="#182b4b", foreground="#ffffff")
-        self.ddvo_tree.tag_configure("result", background="#3c3520", foreground="#fff1bc")
-        self.ddvo_tree.tag_configure("diff_row", background="#5b3717", foreground="#fff0c7")
+        gui_style.apply_tree_tags(self.ddvo_tree, "section_start", "result", "diff_row")
 
         bottom = ttk.Frame(parent, style="Panel.TFrame", padding=(2, 9, 2, 1))
         bottom.pack(fill="x")
@@ -2230,7 +2256,7 @@ class ConverterApp:
         self.api_connection_label = tk.Label(
             connection,
             textvariable=self.api_status_var,
-            bg="#20345d",
+            bg=self.colors.get("status_idle", self.colors["panel"]),
             fg=self.colors["text"],
             anchor="w",
             padx=10,
@@ -2383,12 +2409,15 @@ class ConverterApp:
         self.api_tree.column("account", anchor="center", stretch=False)
         self.api_tree.column("invoice_status", anchor="center", stretch=False)
         self.api_tree.column("api_status", anchor="center", stretch=False)
-        self.api_tree.tag_configure("api_ready", background="#10253a")
-        self.api_tree.tag_configure("api_ok", background="#173c2b", foreground="#dcffea")
-        self.api_tree.tag_configure("api_error", background="#512a31", foreground="#ffe6e8")
-        self.api_tree.tag_configure("api_sent", background="#214638", foreground="#dcffea")
-        self.api_tree.tag_configure("api_missing", background="#3a2f14", foreground="#ffe9b5")
-        self.api_tree.tag_configure("api_exists", background="#1a3348", foreground="#d7ecff")
+        gui_style.apply_tree_tags(
+            self.api_tree,
+            "api_ready",
+            "api_ok",
+            "api_error",
+            "api_sent",
+            "api_missing",
+            "api_exists",
+        )
         self.api_tree.bind("<<TreeviewSelect>>", self._on_api_tree_selection)
         self.api_tree.bind("<Double-1>", self.open_api_row_from_double_click)
         self.api_tree.bind("<Control-a>", lambda _event: self.select_api_rows("ALL"))
@@ -2874,11 +2903,11 @@ class ConverterApp:
         headings: dict[str, str],
     ) -> None:
         """Sumarni zneski pod chk — svetel trak, samo neničelni stolpci."""
-        card_bg = "#1e2d4a"
+        card_bg = self.colors["card"]
         bar = tk.Frame(
             parent,
             bg=card_bg,
-            highlightbackground="#6b4cff",
+            highlightbackground=self.colors["accent"],
             highlightthickness=1,
             padx=8,
             pady=6,
@@ -2888,7 +2917,7 @@ class ConverterApp:
             bar,
             text="Skupaj",
             bg=card_bg,
-            fg="#ffffff",
+            fg=self.colors["text"],
             font=("Segoe UI", 10, "bold"),
         ).pack(anchor="w")
         inner = tk.Frame(bar, bg=card_bg)
@@ -2904,7 +2933,7 @@ class ConverterApp:
             inner,
             text="(ni zneskov — odpri podatke / osveži knjigo)",
             bg=card_bg,
-            fg="#9eb0d0",
+            fg=self.colors["muted"],
             font=("Segoe UI", 9),
             anchor="w",
         ).pack(side="left")
@@ -2964,8 +2993,8 @@ class ConverterApp:
         inner = self.knjiga_totals_inner.get(book)
         if inner is None:
             return
-        card_bg = "#1e2d4a"
-        chip_bg = "#2a3f66"
+        card_bg = self.colors["card"]
+        chip_bg = self.colors["chip_bg"]
         for child in inner.winfo_children():
             child.destroy()
         self.knjiga_totals_labels[book] = {}
@@ -2986,7 +3015,7 @@ class ConverterApp:
                 inner,
                 text="Skupaj: 0,00 (ni neničelnih zneskov v vklopljenih stolpcih)",
                 bg=card_bg,
-                fg="#9eb0d0",
+                fg=self.colors["muted"],
                 font=("Segoe UI", 9),
                 anchor="w",
             ).pack(side="left")
@@ -3003,14 +3032,14 @@ class ConverterApp:
                     chip,
                     text=title,
                     bg=chip_bg,
-                    fg="#c8d6f0",
+                    fg=self.colors["chip_fg"],
                     font=("Segoe UI", 8),
                 ).pack(anchor="w")
                 lab = tk.Label(
                     chip,
                     text=format_money(amount),
                     bg=chip_bg,
-                    fg="#ffe08a",
+                    fg=self.colors["chip_value"],
                     font=("Segoe UI", 11, "bold"),
                 )
                 lab.pack(anchor="e")
@@ -3058,10 +3087,7 @@ class ConverterApp:
             self._build_knjiga_column_checks(frame, book, columns, headings)
             self._build_knjiga_totals_bar(frame, book, columns, headings)
             tree = self._make_tree(frame, columns, headings, widths, selectmode="browse")
-            tree.tag_configure("match_ok", background="#173c2b", foreground="#dcffea")
-            tree.tag_configure("match_api_only", background="#3a2f14", foreground="#ffe9b5")
-            tree.tag_configure("match_local_only", background="#512a31", foreground="#ffe6e8")
-            tree.tag_configure("totals", background="#1a2740", foreground="#9fd4ff")
+            gui_style.apply_tree_tags(tree, "match_ok", "match_api_only", "match_local_only", "totals")
             setattr(self, attr, tree)
             self._apply_knjiga_displaycolumns(book)
 
@@ -9666,7 +9692,7 @@ class ConverterApp:
         ttk.Label(frame, text=title, style="SectionTitle.TLabel").pack(anchor="w")
         if note:
             ttk.Label(frame, text=note, style="Muted.TLabel").pack(anchor="w", pady=(4, 8))
-        box = tk.Text(frame, wrap="word", bg="#0f1c2e", fg="#e8eef8", insertbackground="#e8eef8", font=("Consolas", 10))
+        box = tk.Text(frame, wrap="word", font=("Consolas", 10), **gui_style.text_area_kwargs())
         box.pack(fill="both", expand=True)
         box.insert("1.0", text)
         box.configure(state="disabled")
@@ -10795,7 +10821,7 @@ class ConverterApp:
         scrollbar.grid(row=0, column=1, sticky="ns")
         frame.rowconfigure(0, weight=1)
         frame.columnconfigure(0, weight=1)
-        data_tree.tag_configure("changed", background="#4b351b", foreground="#fff0c7")
+        gui_style.apply_tree_tags(data_tree, "changed")
 
         def display(field_name: str, value: Any) -> str:
             if is_money_field(book, field_name):

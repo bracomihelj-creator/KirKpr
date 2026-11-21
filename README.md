@@ -1,4 +1,4 @@
-# KIR/KPR → Minimax Studio (KirKpr) 3.0.191
+# KIR/KPR → Minimax Studio (KirKpr) 3.0.192
 
 Namizna aplikacija za uvoz evidenc **KIR/KPR**, pregled in pretvorbo v Minimax, obrazec **DDV-O** (XML za eDavke, PDF, virman UPN QR, e-pošta) in oddajo v **Minimax**.
 
