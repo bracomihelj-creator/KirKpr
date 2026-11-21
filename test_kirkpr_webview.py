@@ -122,3 +122,72 @@ class WebviewServiceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+import json as _json
+import threading
+import urllib.error
+import urllib.request
+
+from kirkpr_webview_service import KirKprService
+from host_webview import AppServer
+
+
+class HostHttpTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.base_dir = Path(self.tmp.name)
+        self.config_path = self.base_dir / "convert_KIrKpr_to_minimax_config.json"
+        self.config_path.write_text(
+            _json.dumps(core.default_config(), ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        self.sample = self.base_dir / "sample.json"
+        self.sample.write_text(_json.dumps(_sample_payload(), ensure_ascii=False), encoding="utf-8")
+        service = KirKprService(config_path=self.config_path, base_dir=self.base_dir)
+        self.server = AppServer(service)
+        self.thread = threading.Thread(target=self.server.serve_forever, name="kirkpr-test-http", daemon=True)
+        self.thread.start()
+        self.origin = "http://%s" % self.server.allowed_host
+
+    def tearDown(self) -> None:
+        self.server.shutdown()
+        self.server.server_close()
+        self.tmp.cleanup()
+
+    def _open(self, path, data=None, ticket=True):
+        url = self.origin + path
+        if ticket:
+            url += ("&" if "?" in path else "?") + "ticket=" + self.server.token
+        body = None if data is None else _json.dumps(data).encode("utf-8")
+        headers = {"Host": self.server.allowed_host}
+        if body is not None:
+            headers["Content-Type"] = "application/json"
+        req = urllib.request.Request(url, data=body, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                raw = resp.read()
+                return resp.status, _json.loads(raw.decode("utf-8")) if raw else {}
+        except urllib.error.HTTPError as exc:
+            raw = exc.read()
+            try:
+                parsed = _json.loads(raw.decode("utf-8")) if raw else {}
+            except Exception:
+                parsed = {"raw": raw.decode("utf-8", "replace")}
+            return exc.code, parsed
+
+    def test_boot_requires_ticket(self) -> None:
+        code, body = self._open("/api/boot", ticket=False)
+        self.assertEqual(403, code)
+        self.assertFalse(body.get("ok", True))
+
+    def test_boot_and_load_source_via_http(self) -> None:
+        code, body = self._open("/api/boot")
+        self.assertEqual(200, code)
+        self.assertEqual("5.0.01", body["version"])
+        code, body = self._open("/api/action", {"name": "load_source", "path": str(self.sample), "sync": True})
+        self.assertEqual(200, code)
+        self.assertTrue(body.get("has_data"))
+        code, ir = self._open("/api/ir")
+        self.assertEqual(200, code)
+        self.assertEqual(1, ir["visible"])
+        self.assertEqual("IR-1", ir["rows"][0]["invoice"])

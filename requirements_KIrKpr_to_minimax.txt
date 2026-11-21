@@ -4,3 +4,4 @@ reportlab>=4.0
 qrcode[pil]>=7.4
 segno>=1.6
 Pillow>=10.0
+pywebview>=4.0

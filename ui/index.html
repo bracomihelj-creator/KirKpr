@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KIR/KPR → Minimax Studio 5.0.01</title>
+  <link rel="stylesheet" href="/ui/app.css">
+</head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <defs>
+    <symbol id="i-in" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.7" d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path fill="none" stroke="currentColor" stroke-width="1.7" d="M14 3v6h6M8 13h8M8 17h5"/></symbol>
+    <symbol id="i-out" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.7" d="M4 7h16v13H4zM4 7l2-4h12l2 4M9 12h6"/></symbol>
+    <symbol id="i-tax" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.7" d="M4 4h16v16H4zM8 16 16 8"/><circle cx="9" cy="9" r="1.5" fill="currentColor"/><circle cx="15" cy="15" r="1.5" fill="currentColor"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.7" d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/></symbol>
+    <symbol id="i-sync" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.7" d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4"/></symbol>
+    <symbol id="i-cog" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path fill="none" stroke="currentColor" stroke-width="1.7" d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path fill="none" stroke="currentColor" stroke-width="1.7" d="M12 11v5M12 8h.01"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.7" d="M3 6h6l2 2h10v11H3z"/></symbol>
+    <symbol id="i-chev-l" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.7" d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-chev-r" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.7" d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.7"/><path fill="none" stroke="currentColor" stroke-width="1.7" d="m20 20-3.5-3.5"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.7" d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
+  </defs>
+</svg>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="logo">K</div>
+      <div class="brandText"><b>KirKpr</b><span id="brandVer">5.0.01</span></div>
+    </div>
+    <nav class="nav" id="nav">
+      <div class="navLbl">Evidence</div>
+      <button class="navItem active" data-view="ir"><svg><use href="#i-in"/></svg><span>Izdani računi</span><em id="navCntIr"></em></button>
+      <button class="navItem" data-view="pr"><svg><use href="#i-out"/></svg><span>Prejeti računi</span><em id="navCntPr"></em></button>
+      <button class="navItem" data-view="ddvo"><svg><use href="#i-tax"/></svg><span>Obrazec DDV-O</span></button>
+      <div class="navLbl">Knjige in Minimax</div>
+      <button class="navItem" data-view="knjige"><svg><use href="#i-book"/></svg><span>Knjige IR/PR</span></button>
+      <button class="navItem" data-view="api"><svg><use href="#i-sync"/></svg><span>Minimax API</span></button>
+      <div class="navLbl">Ostalo</div>
+      <button class="navItem" data-view="settings"><svg><use href="#i-cog"/></svg><span>Nastavitve poti</span></button>
+      <button class="navItem" data-view="about"><svg><use href="#i-info"/></svg><span>O programu</span></button>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="titleBlock">
+        <h1 id="pageTitle">Izdani računi</h1>
+        <div class="crumbs" id="crumbs">Izberi podjetje in odpri KIR/KPR datoteko.</div>
+      </div>
+      <div class="topControls">
+        <div class="picker" id="companyPicker">
+          <button class="pickBtn" type="button" id="companyBtn">
+            <div class="pickTxt"><small>Podjetje</small><b id="companyLabel">Ni izbrano</b></div>
+          </button>
+          <div class="popover hidden" id="companyPop">
+            <input id="companySearch" placeholder="Išči podjetje…" autocomplete="off">
+            <div class="companyList" id="companyList"></div>
+          </div>
+        </div>
+        <div class="picker">
+          <button class="iconBtn sm" type="button" id="periodPrev" title="Prejšnji mesec"><svg><use href="#i-chev-l"/></svg></button>
+          <button class="pickBtn" type="button" id="periodBtn">
+            <div class="pickTxt"><small>Obdobje</small><b id="periodLabel">—</b></div>
+          </button>
+          <button class="iconBtn sm" type="button" id="periodNext" title="Naslednji mesec"><svg><use href="#i-chev-r"/></svg></button>
+          <div class="popover periodPop hidden" id="periodPop">
+            <div class="popRow">
+              <label class="fld">Od<input type="date" id="periodFrom"></label>
+              <label class="fld">Do<input type="date" id="periodTo"></label>
+            </div>
+            <div class="popRow">
+              <button class="btn" type="button" id="periodApply">Uporabi</button>
+              <button class="btn ghost" type="button" id="periodReset">Celotno obdobje</button>
+            </div>
+          </div>
+        </div>
+        <button class="btn" type="button" id="openFileBtn"><svg><use href="#i-folder"/></svg> Odpri podatke</button>
+        <button class="iconBtn" type="button" id="themeBtn" title="Svetla / temna"><svg><use href="#i-moon"/></svg></button>
+      </div>
+    </div>
+
+    <div class="kpis" id="kpis">
+      <div class="card"><small>Izdani računi</small><b id="kpiIr">0</b><span id="kpiIrMoney">0,00</span></div>
+      <div class="card"><small>Prejeti računi</small><b id="kpiPr">0</b><span id="kpiPrMoney">0,00</span></div>
+      <div class="card"><small>DDV IR</small><b id="kpiIrVat">0,00</b></div>
+      <div class="card"><small>DDV PR</small><b id="kpiPrVat">0,00</b></div>
+    </div>
+
+    <div class="toolbar" id="toolbar">
+      <div class="fld" style="min-width:240px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <svg width="16" height="16"><use href="#i-search"/></svg>
+          <input id="searchBox" placeholder="Išči…" autocomplete="off">
+        </div>
+      </div>
+      <span class="muted" id="statusLine"></span>
+    </div>
+
+    <div class="page" data-page="ir" id="page-ir">
+      <div class="tableWrap"><table class="grid" id="tblIr"></table></div>
+    </div>
+    <div class="page hidden" data-page="pr" id="page-pr">
+      <div class="tableWrap"><table class="grid" id="tblPr"></table></div>
+    </div>
+    <div class="page hidden" data-page="ddvo" id="page-ddvo">
+      <div class="card" id="ddvoMeta" style="margin:0 22px 10px"></div>
+      <div class="tableWrap"><table class="grid" id="tblDdvo"></table></div>
+    </div>
+    <div class="page hidden" data-page="knjige" id="page-knjige">
+      <div class="empty" style="padding:40px 22px">Knjige IR/PR (JSON in Minimax pogled) bodo v naslednjem koraku. Tk urejevalnik ostane na voljo v Zaganjalniku 4.0.3.</div>
+    </div>
+    <div class="page hidden" data-page="api" id="page-api">
+      <div class="empty" style="padding:40px 22px">Minimax API povezava, predpreverjanje, oddaja in »Ponovi NAPAKA« bodo v naslednjem koraku. Izračuni in oddaja ostajajo nespremenjeni v obstoječi kodi.</div>
+    </div>
+    <div class="page hidden" data-page="settings" id="page-settings">
+      <div style="padding:8px 22px 22px;max-width:720px;display:flex;flex-direction:column;gap:12px">
+        <label class="fld">Register podjetij (EvidencaFirm)<input id="setRegistry"></label>
+        <label class="fld">Korenska mapa TROPS<input id="setTrops"></label>
+        <label class="fld">Minimax nastavitve (Davčna blagajna 5.1)<input id="setMinimax"></label>
+        <div class="popRow">
+          <button class="btn" type="button" id="savePathsBtn">Shrani poti</button>
+        </div>
+        <p class="muted">Gesla se ne kopirajo v KirKpr. Spremeni se samo te tri poti v nastavitveni datoteki.</p>
+      </div>
+    </div>
+    <div class="page hidden" data-page="about" id="page-about">
+      <div style="padding:8px 22px 22px;max-width:720px" id="aboutBox">
+        <p><b>KIR/KPR → Minimax Studio 5.0.01</b> — vmesnik WebView2 po zgledu Trops Studio 5.</p>
+        <p>Tk vmesnik 4.0.3 ostane v mapi (KirKpr_V4.0.3.pyw), dokler 5.x ne pokrije vseh zaslonov.</p>
+        <p>Izračuni DDV, XML in oddaja v Minimax se v tej različici ne spreminjajo.</p>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="toast" class="toast hidden"></div>
+<script src="/ui/app.js"></script>
+</body>
+</html>
