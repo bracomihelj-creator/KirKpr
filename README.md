@@ -8,8 +8,9 @@ Namizna aplikacija za uvoz evidenc **KIR/KPR**, pregled in pretvorbo v Minimax, 
 
 ## Zagon
 
-1. Dvokliknite `Zaženi_KIRKPR_Minimax_cursor.bat`
-2. ali: `py convert_KIrKpr_to_minimax.py`
+1. Dvokliknite bližnjico **KirKpr** na namizju ali `KirKpr_V4.0.3.pyw` (brez konzole).
+2. ali: `Zaženi_KIRKPR_Minimax_cursor.bat`
+3. ali: `py convert_KIrKpr_to_minimax.py`
 
 Odvisnosti:
 
@@ -31,7 +32,8 @@ py convert_KIrKpr_to_minimax.py vhod.zip --output C:\Izhod
 | Pot | Vsebina |
 |---|---|
 | `convert_KIrKpr_to_minimax.py` | glavni program in okno |
-| `Zaženi_KIRKPR_Minimax_cursor.bat` | priporočeni zagon |
+| `KirKpr_V4.0.3.pyw` | priporočeni zagon brez konzole (bližnjica na namizju) |
+| `Zaženi_KIRKPR_Minimax_cursor.bat` | zaganjalnik .bat |
 | `kirkpr_minimax_core.py`, `kirkpr_minimax_dataset.py`, `minimax_api_client.py` | jedro pretvorbe in Minimax API |
 | `kirkpr_gui_style.py` | slog okna Tkinter |
 | `kirkpr_ddvo_*.py`, `ddvo_transforms/` | DDV-O (XML, PDF, virman, e-pošta) |

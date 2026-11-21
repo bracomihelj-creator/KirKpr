@@ -16,6 +16,8 @@ DODANO V 4.0.3
 --------------
 - Če nastavitvena datoteka ni berljiva, je program ne prepiše s privzetimi vrednostmi.
   Naredi varnostno kopijo in v dnevnik zapiše opozorilo.
+- Zaganjalnik KirKpr_V4.0.3.pyw odpre program brez črnega okna konzole.
+  Na namizju je bližnjica KirKpr. Stari zaganjalniki .bat ostanejo nespremenjeni.
 
 DODANO V 4.0.2
 --------------
@@ -1362,7 +1364,9 @@ Datoteka → Nastavitve poti…
 ZAGON
 -----
 1. Vse datoteke iz ZIP-a razširite v isto mapo.
-2. Dvokliknite Zaženi_KIRKPR_Minimax_cursor.bat.
+2. Dvokliknite bližnjico KirKpr na namizju ali KirKpr_V4.0.3.pyw v mapi programa.
+   Program se odpre brez črnega okna konzole. Še vedno delujeta tudi
+   Zaženi_KIRKPR_Minimax_cursor.bat in Zaženi_KIRKPR_Minimax.bat.
 3. Kliknite »Odpri podatke« in izberite ZIP, JSON, XML ali CSV.
 
 Na levi sta drevo podjetij iz EvidenceFirm in drevesna navigacija po sklopih:
