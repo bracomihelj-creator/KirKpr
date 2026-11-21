@@ -613,10 +613,10 @@ def save_template(
         },
     )
     path = save_all_templates(templates, base_dir, active_template_id=tid)
-    # Preveri zapis (brez tega se napaka »shrani« zlaže).
-    check = get_template(tid, base_dir=base_dir)
-    got_body = normalize_email_html(str(check.get("body") or ""))
-    got_subject = str(check.get("subject") or "").strip()
+    # Preveri zapis na disku (brez get_template, ki doda {qr_block}).
+    stored = load_templates(base_dir).get(tid) or {}
+    got_body = normalize_email_html(str(stored.get("body") or ""))
+    got_subject = str(stored.get("subject") or "").strip()
     if got_body != wanted_body or got_subject != wanted_subject:
         raise OSError(
             f"Predloga ni ostala na disku ({path}). "

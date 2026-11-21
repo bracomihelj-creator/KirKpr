@@ -35,7 +35,7 @@ import kirkpr_logging
 import minimax_api_client as minimax_api
 
 
-APP_VERSION = "4.0.1"
+APP_VERSION = "4.0.2"
 CHROME_EXTENSION_VERSION = "1.4.19"
 APP_TITLE = "KIR/KPR → Minimax Studio"
 APP_DISPLAY_TITLE = f"{APP_TITLE} v{APP_VERSION}"
