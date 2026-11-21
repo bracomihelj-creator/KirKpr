@@ -1,6 +1,6 @@
-/* KirKpr 5.0.06 — vmesnik WebView2 (klici HTTP API / pywebview Bridge). */
+/* KirKpr 5.0.07 — vmesnik WebView2 (klici HTTP API / pywebview Bridge). */
 (function () {
-  var state = { view: "ir", boot: null, companies: [], selected: {}, editor: null, dataEditor: null, dataField: "", lastExportDir: "", lastExportPath: "", knjigaBook: "IR", knjigaMode: "json" };
+  var state = { view: "ir", boot: null, companies: [], selected: {}, editor: null, dataEditor: null, dataField: "", lastExportDir: "", lastExportPath: "", knjigaBook: "IR", knjigaMode: "json", apiFilter: "ALL" };
   var titles = {
     ir: "Izdani računi",
     pr: "Prejeti računi",
@@ -72,7 +72,7 @@
       return;
     }
     state.boot = s;
-    $("brandVer").textContent = s.version || "5.0.06";
+    $("brandVer").textContent = s.version || "5.0.07";
     if (s.theme) document.documentElement.setAttribute("data-theme", s.theme);
     if ($("autoReopenChk")) $("autoReopenChk").checked = !!s.auto_reopen;
     if (s.sessions) renderSessions(s.sessions, s.selected_session_id);
@@ -188,7 +188,10 @@
         var chosen = !!(state.selected[state.view] && state.selected[state.view][id]);
         var cls = [];
         if (row.tag === "tax_only" || row.tag === "vat_not_deducted") cls.push("warnRow");
-        if (row.tag === "match_ok") cls.push("matchOk");
+        if (row.tag === "match_ok" || row.tag === "api_ok") cls.push("matchOk");
+        if (row.tag === "api_ok") cls.push("apiOk");
+        if (row.tag === "api_error") cls.push("apiError");
+        if (row.tag === "api_sent" || row.tag === "api_exists") cls.push("apiSent");
         if (row.tag === "match_api_only") cls.push("matchApi");
         if (row.tag === "match_local_only") cls.push("matchLocal");
         if (row.totals || row.zapst === "Σ") cls.push("totalsRow");
@@ -359,6 +362,9 @@
     }
     if (view === "knjige") {
       return reloadKnjige();
+    }
+    if (view === "api") {
+      return reloadApi();
     }
     if (view === "ddvo") {
       return api("/api/ddvo?q=" + encodeURIComponent(q)).then(function (data) {
@@ -930,6 +936,193 @@
       loadSessions();
     }).catch(function (e) { toast(e.message, true); });
   });
+
+
+  var API_COLS = [
+    { key: "book", label: "Knjiga" },
+    { key: "invoice", label: "Listina" },
+    { key: "date", label: "Datum / partner" },
+    { key: "party", label: "Partner" },
+    { key: "tax_id", label: "ID za DDV" },
+    { key: "gross", label: "Znesek z DDV" },
+    { key: "account", label: "Konto" },
+    { key: "invoice_status", label: "Stanje v Minimaxu" },
+    { key: "api_status", label: "API" },
+    { key: "detail", label: "Rezultat / napaka" }
+  ];
+
+  function pickFolder() {
+    var b = bridge();
+    if (b && b.pick_folder) return b.pick_folder().then(function (p) { return p || ""; });
+    return Promise.resolve("");
+  }
+
+  function pickFiles() {
+    var b = bridge();
+    if (b && b.pick_files) {
+      return b.pick_files(["Vse (*.*)"]).then(function (p) {
+        if (!p) return [];
+        if (Array.isArray(p)) return p.filter(Boolean);
+        return [p];
+      });
+    }
+    if (b && b.pick_file) return b.pick_file(["Vse (*.*)"]).then(function (p) { return p ? [p] : []; });
+    return Promise.resolve([]);
+  }
+
+  function fillSelect(id, rows, value, valueKey, labelKey, emptyLabel) {
+    var el = $(id);
+    if (!el) return;
+    var current = value || el.value || "";
+    var html = emptyLabel ? "<option value=\"\">" + emptyLabel + "</option>" : "";
+    (rows || []).forEach(function (row) {
+      var val = row[valueKey] != null ? String(row[valueKey]) : "";
+      if (!val) return;
+      var label = row[labelKey] || val;
+      html += "<option value=\"" + escapeHtml(val) + "\">" + escapeHtml(String(label)) + "</option>";
+    });
+    el.innerHTML = html;
+    if (current) el.value = current;
+  }
+
+  function applyApiForm(api) {
+    api = api || {};
+    if ($("apiMode")) $("apiMode").value = api.mode || "journal";
+    if ($("apiJournalStatus")) $("apiJournalStatus").value = api.journal_status || "O";
+    if ($("apiDueDays")) $("apiDueDays").value = api.due_days || "8";
+    if ($("apiPrCompanion")) $("apiPrCompanion").checked = !!api.pr_companion_journal;
+    var catalogs = api.catalogs || {};
+    fillSelect("apiIrNumbering", catalogs.ir_numberings, api.numbering_ir_id, "id", "label", "—");
+    fillSelect("apiPrNumbering", catalogs.pr_numberings, api.numbering_pr_id, "id", "label", "—");
+    fillSelect("apiIrItem", catalogs.items, api.item_ir_id, "id", "label", "—");
+    fillSelect("apiVatIr", catalogs.vat_types, api.vat_type_ir, "code", "label", "—");
+    fillSelect("apiVatPr", catalogs.vat_types, api.vat_type_pr, "code", "label", "— običajni PR");
+    var conn = $("apiConnLabel");
+    if (conn) {
+      conn.textContent = api.connected
+        ? ("Povezano: " + (api.org_label || api.org_id || ""))
+        : (api.message || "Minimax API ni povezan.");
+    }
+  }
+
+  function apiOptionsPayload() {
+    return {
+      mode: $("apiMode").value,
+      journal_status: $("apiJournalStatus").value,
+      due_days: $("apiDueDays").value,
+      pr_companion_journal: $("apiPrCompanion").checked,
+      numbering_ir_id: $("apiIrNumbering").value,
+      numbering_pr_id: $("apiPrNumbering").value,
+      item_ir_id: $("apiIrItem").value,
+      vat_type_ir: $("apiVatIr").value,
+      vat_type_pr: $("apiVatPr").value
+    };
+  }
+
+  function singleApiId() {
+    var ids = selectedIds();
+    if (ids.length !== 1) {
+      toast("Najprej označite natanko en PR.", true);
+      return "";
+    }
+    return ids[0];
+  }
+
+  function reloadApi() {
+    var q = ($("apiSearch") && $("apiSearch").value) || "";
+    document.querySelectorAll("[data-api-filter]").forEach(function (btn) {
+      btn.classList.toggle("ghost", btn.getAttribute("data-api-filter") !== state.apiFilter);
+    });
+    return api("/api/minimax?book=" + encodeURIComponent(state.apiFilter) + "&q=" + encodeURIComponent(q)).then(function (data) {
+      applyApiForm(data.api || (state.boot && state.boot.api) || {});
+      renderTable($("tblApi"), API_COLS, data.rows || [], { gross: true }, true);
+      var summary = data.has_data ? ("Prikazanih: " + data.visible + " / " + data.count) : "Ni naloženih podatkov.";
+      if (data.api && data.api.message) summary += "  •  " + data.api.message;
+      $("apiSummary").textContent = summary;
+      $("statusLine").textContent = summary;
+    });
+  }
+
+  $("apiConnectBtn").addEventListener("click", function () {
+    runAction("connect_minimax_api", {}).then(function (s) {
+      if (s) applyState(s);
+      reloadApi();
+    }).catch(function (e) { toast(e.message, true); });
+  });
+  $("apiSaveOptsBtn").addEventListener("click", function () {
+    act("set_api_options", apiOptionsPayload()).then(function (s) {
+      if (s.ok === false) throw new Error(s.msg || s.error);
+      applyState(s);
+      if (s.api) applyApiForm(s.api);
+    }).catch(function (e) { toast(e.message, true); });
+  });
+  document.querySelectorAll("[data-api-filter]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      state.apiFilter = btn.getAttribute("data-api-filter") || "ALL";
+      reloadApi().catch(function (e) { toast(e.message, true); });
+    });
+  });
+  $("apiSearch").addEventListener("input", function () {
+    clearTimeout(reloadApi._t);
+    reloadApi._t = setTimeout(function () {
+      reloadApi().catch(function (e) { toast(e.message, true); });
+    }, 200);
+  });
+  $("apiValidateBtn").addEventListener("click", function () {
+    var ids = selectedIds();
+    if (!ids.length) { toast("Izberite enega ali več še neoddanih računov.", true); return; }
+    runAction("validate_api_selection", { ids: ids }).then(function (s) {
+      if (s) applyState(s);
+      reloadApi();
+    }).catch(function (e) { toast(e.message, true); });
+  });
+  $("apiSendBtn").addEventListener("click", function () {
+    var ids = selectedIds();
+    if (!ids.length) { toast("Izberite račune za oddajo.", true); return; }
+    act("preview_api_send", { ids: ids }).then(function (data) {
+      if (data.ok === false) throw new Error(data.msg || data.error || "Predogled oddaje ni uspel.");
+      if (!window.confirm(data.prompt)) return null;
+      return runAction("send_api_selection", { ids: ids, confirm: true });
+    }).then(function (s) {
+      if (!s) return;
+      applyState(s);
+      reloadApi();
+    }).catch(function (e) { toast(e.message, true); });
+  });
+  $("apiRetryBtn").addEventListener("click", function () {
+    runAction("retry_failed_api_rows", {}).then(function (s) {
+      if (s) applyState(s);
+      reloadApi();
+    }).catch(function (e) { toast(e.message, true); });
+  });
+  $("apiAttachBtn").addEventListener("click", function () {
+    var id = singleApiId();
+    if (!id) return;
+    pickFolder().then(function (dir) {
+      if (!dir) return null;
+      return runAction("download_invoice_attachments", { id: id, out_dir: dir });
+    }).then(function (s) {
+      if (s) { applyState(s); reloadApi(); }
+    }).catch(function (e) { toast(e.message, true); });
+  });
+  $("apiImportAttBtn").addEventListener("click", function () {
+    var id = singleApiId();
+    if (!id) return;
+    pickFiles().then(function (paths) {
+      if (!paths || !paths.length) return null;
+      return runAction("import_attachment_from_folder", { id: id, sources: paths });
+    }).then(function (s) {
+      if (s) { applyState(s); reloadApi(); }
+    }).catch(function (e) { toast(e.message, true); });
+  });
+  $("apiSupplierAttBtn").addEventListener("click", function () {
+    var id = singleApiId();
+    if (!id) return;
+    runAction("download_supplier_issued_attachment", { id: id }).then(function (s) {
+      if (s) { applyState(s); reloadApi(); }
+    }).catch(function (e) { toast(e.message, true); });
+  });
+
 
   boot().catch(function (e) { toast(e.message || "Zagon ni uspel.", true); });
 })();

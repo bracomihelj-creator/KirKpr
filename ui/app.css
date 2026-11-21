@@ -364,3 +364,9 @@ details.savedMaps{margin-top:12px}details.savedMaps summary{cursor:pointer;font-
 .helpBody{white-space:pre-wrap;font-family:var(--font-sans);font-size:13.5px;margin:0;color:var(--text)}
 body{display:flex;flex-direction:column;min-height:100vh}
 .shell{flex:1;min-height:0}
+
+.fld.compact{display:inline-flex;flex-direction:column;gap:2px;font-size:11px;color:var(--text-2);font-weight:650}
+.fld.compact select,.fld.compact input{min-width:7em;height:28px;border:1px solid var(--line);border-radius:6px;padding:0 8px;background:var(--surface);color:var(--text)}
+.apiOk td:first-child{box-shadow:inset 3px 0 0 var(--good)}
+.apiError td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
+.apiSent td:first-child{box-shadow:inset 3px 0 0 var(--accent)}

@@ -47,6 +47,37 @@ def _sample_payload() -> dict:
     }
 
 
+
+class _FakeResponse:
+    def __init__(self, location="https://moj.minimax.si/api/orgs/99/receivedinvoices/123", status=201):
+        self.location = location
+        self.status = status
+
+
+class _FakeMinimaxClient:
+    def __init__(self, organisation_id="99"):
+        self.organisation_id = organisation_id
+        self.sent = []
+        self.validate_result = "OK"
+        self.validate_detail = "pripravljeno"
+
+    def validate_rows(self, dataset, selections, status="O", mode="journal", options=None, progress=None):
+        return [{"status": self.validate_result, "detail": self.validate_detail} for _ in selections]
+
+    def send_row(self, dataset, book, row, status="O", *, mode="journal", options=None):
+        self.sent.append({"book": book, "invoice": row.get("P3"), "status": status, "mode": mode, "options": dict(options or {})})
+        return _FakeResponse()
+
+    def invoice_attachments(self, book, record_id):
+        return [{"id": record_id}]
+
+    def attachment_file(self, attachment):
+        return ("priloga.pdf", b"%PDF-fake")
+
+    def supplier_issued_invoice_attachments(self, **kwargs):
+        return {"IssuedInvoiceId": 7, "Number": "IR-Q"}, [{"id": 2}]
+
+
 class WebviewServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -63,11 +94,11 @@ class WebviewServiceTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def test_version_is_5_0_06(self) -> None:
-        self.assertEqual("5.0.06", APP_VERSION)
+    def test_version_is_5_0_07(self) -> None:
+        self.assertEqual("5.0.07", APP_VERSION)
         boot = self.svc.boot()
         self.assertTrue(boot["ok"])
-        self.assertEqual("5.0.06", boot["version"])
+        self.assertEqual("5.0.07", boot["version"])
         self.assertFalse(boot["has_data"])
 
     def test_load_source_lists_ir_pr_and_ddvo(self) -> None:
@@ -294,6 +325,103 @@ class WebviewServiceTests(unittest.TestCase):
         else:
             self.assertFalse(project_sess.exists())
 
+    def _prepare_api(self):
+        self.svc.selected_company = {
+            "Kratko ime": "Test d.o.o.",
+            "Org_ID": "99",
+            "DAVČNA": "12345678",
+            "Zšt": "1",
+        }
+        client = _FakeMinimaxClient()
+        self.svc.minimax_client = client
+        self.svc.minimax_org_label = "99 — Test d.o.o."
+        self.svc.load_source(str(self.sample))
+        return client
+
+    def test_connect_requires_company_and_settings(self) -> None:
+        with self.assertRaises(core.KirkprError):
+            self.svc.connect_minimax_api()
+        self.svc.selected_company = {"Kratko ime": "Brez Org"}
+        with self.assertRaises(core.KirkprError):
+            self.svc.connect_minimax_api()
+        self.svc.selected_company = {"Kratko ime": "Test d.o.o.", "Org_ID": "99"}
+        with self.assertRaises(core.KirkprError):
+            self.svc.connect_minimax_api(str(self.base / "manjka.json"))
+
+    def test_list_api_and_validate_without_real_client_send(self) -> None:
+        client = self._prepare_api()
+        listed = self.svc.list_api()
+        self.assertEqual(2, listed["visible"])
+        ids = [row["id"] for row in listed["rows"]]
+        self.assertIn("api:IR:0", ids)
+        self.assertIn("api:PR:0", ids)
+        validated = self.svc.validate_api_selection(ids)
+        self.assertTrue(validated["all_ok"])
+        self.assertEqual("OK", validated["rows"][0]["api_status"])
+        self.assertEqual([], client.sent)
+
+    def test_send_requires_confirmation_and_never_fires_without_it(self) -> None:
+        client = self._prepare_api()
+        ids = [row["id"] for row in self.svc.list_api()["rows"]]
+        self.svc.validate_api_selection(ids)
+        with self.assertRaises(core.KirkprError) as ctx:
+            self.svc.send_api_selection(ids, confirm=False)
+        self.assertIn("potrditvi", str(ctx.exception))
+        self.assertEqual([], client.sent)
+        preview = self.svc.preview_api_send(ids)
+        self.assertTrue(preview["ok"])
+        self.assertIn("Nadaljujem?", preview["prompt"])
+        self.assertEqual([], client.sent)
+        out = self.base / "api_summaries"
+        sent = self.svc.send_api_selection(ids, confirm=True, summary_dir=str(out))
+        self.assertEqual(2, sent["sent"])
+        self.assertEqual(2, len(client.sent))
+        self.assertTrue(Path(sent["summary_path"]).is_file())
+        self.assertEqual(out.resolve(), Path(sent["summary_path"]).parent.resolve())
+
+    def test_retry_failed_validates_but_does_not_send(self) -> None:
+        client = self._prepare_api()
+        ids = [row["id"] for row in self.svc.list_api()["rows"]]
+        client.validate_result = "NAPAKA"
+        client.validate_detail = "ni pripravljeno"
+        self.svc.validate_api_selection(ids)
+        self.assertEqual("NAPAKA", self.svc.list_api()["rows"][0]["api_status"])
+        client.validate_result = "OK"
+        client.validate_detail = "pripravljeno"
+        retried = self.svc.retry_failed_api_rows()
+        self.assertTrue(retried["all_ok"])
+        self.assertEqual([], client.sent)
+        self.assertIn("Oddaj izbrane", retried["msg"])
+
+    def test_attachments_stay_in_temp_and_supplier_guard(self) -> None:
+        client = self._prepare_api()
+        ir_id, pr_id = "api:IR:0", "api:PR:0"
+        with self.assertRaises(core.KirkprError):
+            self.svc.download_invoice_attachments(pr_id, out_dir="")
+        with self.assertRaises(core.KirkprError):
+            self.svc.download_supplier_issued_attachment(pr_id, out_dir=str(self.base / "quick"))
+        source = self.base / "priponka.txt"
+        source.write_text("ok", encoding="utf-8")
+        dest = self.base / "priponke_out"
+        imported = self.svc.import_attachment_from_folder(pr_id, [str(source)], dest_dir=str(dest))
+        self.assertEqual(1, len(imported["files"]))
+        self.assertTrue(Path(imported["files"][0]).is_file())
+        self.assertEqual(dest.resolve(), Path(imported["out_dir"]).resolve())
+        self.svc._sent_invoice_id = lambda book, row: "123"
+        down_dir = self.base / "download_att"
+        downloaded = self.svc.download_invoice_attachments(pr_id, out_dir=str(down_dir))
+        self.assertEqual(1, len(downloaded["files"]))
+        self.assertTrue(Path(downloaded["files"][0]).is_file())
+        self.svc.dataset.kpr[0]["P6"] = "QUICK M.B."
+        quick_dir = self.base / "quick_out"
+        quick = self.svc.download_supplier_issued_attachment(pr_id, out_dir=str(quick_dir))
+        self.assertEqual(1, len(quick["files"]))
+        self.assertTrue(Path(quick["files"][0]).is_file())
+        self.assertEqual([], client.sent)
+        with self.assertRaises(core.KirkprError):
+            self.svc.download_invoice_attachments(ir_id, out_dir=str(down_dir))
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -304,7 +432,6 @@ import urllib.request
 
 from kirkpr_webview_service import KirKprService
 from host_webview import AppServer
-
 
 class HostHttpTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -357,7 +484,7 @@ class HostHttpTests(unittest.TestCase):
     def test_boot_and_load_source_via_http(self) -> None:
         code, body = self._open("/api/boot")
         self.assertEqual(200, code)
-        self.assertEqual("5.0.06", body["version"])
+        self.assertEqual("5.0.07", body["version"])
         code, body = self._open("/api/action", {"name": "load_source", "path": str(self.sample), "sync": True})
         self.assertEqual(200, code)
         self.assertTrue(body.get("has_data"))
@@ -435,3 +562,27 @@ class HostHttpTests(unittest.TestCase):
         self.assertTrue(sessions.get("ok"))
         self.assertIn("rows", sessions)
 
+
+    def test_minimax_list_and_send_without_confirm_via_http(self) -> None:
+        code, body = self._open("/api/action", {"name": "load_source", "path": str(self.sample), "sync": True})
+        self.assertEqual(200, code)
+        self.server.service.selected_company = {
+            "Kratko ime": "Test d.o.o.",
+            "Org_ID": "99",
+            "DAVČNA": "12345678",
+            "Zšt": "1",
+        }
+        client = _FakeMinimaxClient()
+        self.server.service.minimax_client = client
+        self.server.service.minimax_org_label = "99 — Test d.o.o."
+        code, data = self._open("/api/minimax")
+        self.assertEqual(200, code)
+        self.assertEqual(2, data["visible"])
+        ids = [row["id"] for row in data["rows"]]
+        code, validated = self._open("/api/action", {"name": "validate_api_selection", "ids": ids, "sync": True})
+        self.assertEqual(200, code)
+        self.assertTrue(validated.get("all_ok"))
+        code, refused = self._open("/api/action", {"name": "send_api_selection", "ids": ids, "confirm": False, "sync": True})
+        self.assertEqual(400, code)
+        self.assertIn("potrditvi", refused.get("msg") or refused.get("error") or "")
+        self.assertEqual([], client.sent)

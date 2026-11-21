@@ -7,10 +7,11 @@ Samo kliče kirkpr_minimax_core, register podjetij in pomožne funkcije obdobja.
 from __future__ import annotations
 
 import copy
+import shutil
 import json
 import re
 import tempfile
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any, Mapping
@@ -21,7 +22,7 @@ import minimax_api_client as minimax_api
 import kirkpr_minimax_core as core
 import convert_KIrKpr_to_minimax as gui_helpers
 
-APP_VERSION = "5.0.06"
+APP_VERSION = "5.0.07"
 APP_TITLE = "KIR/KPR \u2192 Minimax Studio"
 APP_EDITION = "WebView2"
 
@@ -90,11 +91,34 @@ class KirKprService:
         self.knjiga_records: dict[str, list[dict[str, Any]]] = {"IR": [], "PR": []}
         self.knjiga_period: tuple[str, str] | None = None
         self.minimax_client = None
+        self.api_row_states: dict[str, dict[str, str]] = {}
+        self.api_view_filter = "ALL"
+        self.api_search = ""
+        self.api_transfer_mode = "journal"
+        self.api_journal_status = "O"
+        self.api_due_days = "8"
+        self.api_ir_numbering_id = ""
+        self.api_pr_numbering_id = ""
+        self.api_ir_item_id = ""
+        self.api_vat_type_ir = "OD"
+        self.api_vat_type_pr = ""
+        self.api_pr_companion_journal = False
+        self.minimax_organisations: dict[str, str] = {}
+        self.minimax_org_label = ""
+        self.api_status_message = ""
+        self.api_catalogs: dict[str, list[Any]] = {
+            "ir_numberings": [],
+            "pr_numberings": [],
+            "items": [],
+            "vat_types": [],
+        }
+        self.api_reference_warnings: list[str] = []
         self._selected_session_id: int | None = None
         db_path = Path(sessions_db_path) if sessions_db_path else sessions_db.default_db_path(self.base_dir)
         self.sessions_db = sessions_db.SessionsDb(db_path)
         self._reload_companies()
         self._restore_selected_company()
+        self._load_api_options_from_profile()
 
     def _reload_companies(self) -> None:
         preferred = self.config.get("company_registry_path") or None
@@ -205,6 +229,7 @@ class KirKprService:
             "auto_reopen": bool(self.config.get("auto_reopen_last_source")),
             "theme": str(self.config.get("ui_theme") or "light"),
             "selected_session_id": self._selected_session_id,
+            "api": self._api_public_state(),
             "summary": summary,
             "paths": {
                 "config": str(self.config_path),
@@ -238,6 +263,7 @@ class KirKprService:
         wanted = str(key or "").strip()
         found = registry.find_company(self.companies, wanted) if wanted else None
         self.selected_company = found
+        self._load_api_options_from_profile()
         if found:
             oddaja = registry.company_oddaja_ddv(found)
             # Samo predlaga obdobje, če podatki še niso naloženi.
@@ -1754,6 +1780,815 @@ class KirKprService:
                 f"Dnevnik: {kirkpr_logging.default_log_path()}"
             )
         return {"ok": True, "topic": name, "title": title, "body": body}
+
+    def _load_api_options_from_profile(self) -> None:
+        profile = self._profile_config()
+        mode = str(profile.get("minimax_api_transfer_mode") or self.config.get("minimax_api_transfer_mode") or "journal")
+        self.api_transfer_mode = "invoice" if mode == "invoice" else "journal"
+        status = str(self.config.get("minimax_journal_status") or profile.get("minimax_journal_status") or "O")
+        self.api_journal_status = "P" if str(status).strip().upper().startswith("P") else "O"
+        self.api_ir_numbering_id = str(profile.get("minimax_ir_numbering_id") or "")
+        self.api_pr_numbering_id = str(profile.get("minimax_pr_numbering_id") or "")
+        self.api_ir_item_id = str(profile.get("minimax_ir_item_id") or "")
+        self.api_due_days = str(profile.get("minimax_due_days") or "8")
+        self.api_vat_type_ir = str(profile.get("minimax_vat_type_ir") or "OD")
+        self.api_vat_type_pr = str(profile.get("minimax_vat_type_pr") or "")
+        self.api_pr_companion_journal = bool(profile.get("minimax_pr_companion_journal", False))
+
+    def _api_public_state(self) -> dict[str, Any]:
+        client = self.minimax_client
+        org_id = str(getattr(client, "organisation_id", "") or "") if client is not None else ""
+        return {
+            "connected": bool(client is not None and org_id),
+            "org_id": org_id,
+            "org_label": self.minimax_org_label,
+            "message": self.api_status_message,
+            "mode": self.api_transfer_mode,
+            "journal_status": self.api_journal_status,
+            "due_days": self.api_due_days,
+            "pr_companion_journal": self.api_pr_companion_journal,
+            "numbering_ir_id": self.api_ir_numbering_id,
+            "numbering_pr_id": self.api_pr_numbering_id,
+            "item_ir_id": self.api_ir_item_id,
+            "vat_type_ir": self.api_vat_type_ir,
+            "vat_type_pr": self.api_vat_type_pr,
+            "warnings": list(self.api_reference_warnings),
+            "catalogs": _jsonable(self.api_catalogs),
+            "settings_path": str(self.config.get("minimax_settings_path") or ""),
+        }
+
+    def _api_transfer_options(self) -> dict[str, Any]:
+        return {
+            "numbering_ir_id": self._api_reference_id(self.api_ir_numbering_id),
+            "numbering_pr_id": self._api_reference_id(self.api_pr_numbering_id),
+            "item_ir_id": self._api_reference_id(self.api_ir_item_id),
+            "due_days": str(self.api_due_days or "8").strip() or "8",
+            "vat_type_ir": self._api_vat_type_code(self.api_vat_type_ir) or "OD",
+            "vat_type_pr": self._api_vat_type_code(self.api_vat_type_pr),
+            "pr_companion_journal": bool(self.api_pr_companion_journal),
+        }
+
+    @staticmethod
+    def _api_reference_id(value: str) -> str:
+        match = re.match(r"\s*(\d+)\b", str(value or ""))
+        return match.group(1) if match else ""
+
+    @staticmethod
+    def _api_vat_type_code(value: str) -> str:
+        text = str(value or "").strip()
+        if not text or text.startswith("\u2014") or text.startswith("-"):
+            return ""
+        return text.split("\u2014", 1)[0].strip().upper()
+
+    def _filter_iso_bounds(self) -> tuple[str, str]:
+        if self.period_from and self.period_to:
+            return self.period_from.isoformat(), self.period_to.isoformat()
+        if self.dataset:
+            return str(self.dataset.period_from or ""), str(self.dataset.period_to or "")
+        return "", ""
+
+    def _company_paths(self):
+        if not self.selected_company:
+            return None
+        trops = str(self.config.get("trops_root") or "").strip()
+        if not trops:
+            return None
+        start, end = self._filter_iso_bounds()
+        return registry.company_paths(self.selected_company, start, end, trops_root=trops)
+
+    def _active_org_matches_api(self) -> None:
+        if not self.selected_company or self.minimax_client is None:
+            return
+        expected = str(registry.company_org_id(self.selected_company) or "").strip()
+        actual = str(getattr(self.minimax_client, "organisation_id", "") or "")
+        name = registry.company_name(self.selected_company)
+        if not expected:
+            raise core.KirkprError(
+                f"Podjetje {name} v EvidenciFirm nima vpisanega Minimax Org_ID."
+            )
+        if actual and actual != expected:
+            raise core.KirkprError(
+                f"Izbrano podjetje: {name}\nPričakovan Org_ID {expected}, povezan pa je {actual}."
+            )
+
+    def _require_api(self, *, need_data: bool = True) -> None:
+        if need_data and self.dataset is None:
+            raise core.KirkprError("Najprej odprite podatke in povežite Minimax API.")
+        if self.minimax_client is None or not getattr(self.minimax_client, "organisation_id", None):
+            raise core.KirkprError("Najprej odprite podatke in povežite Minimax API.")
+        self._active_org_matches_api()
+
+    def _parse_api_id(self, row_id: str) -> tuple[str, int]:
+        text = str(row_id or "").strip()
+        parts = text.split(":")
+        if len(parts) == 3 and parts[0] == "api" and parts[1] in {"IR", "PR"}:
+            return parts[1], int(parts[2])
+        raise core.KirkprError(f"Neznan identifikator vrstice API: {row_id}")
+
+    def _api_item_row(self, row_id: str) -> tuple[str, dict[str, Any]]:
+        if self.dataset is None:
+            raise core.KirkprError("Najprej odprite KIR/KPR datoteko.")
+        book, index = self._parse_api_id(row_id)
+        source = self.dataset.kir if book == "IR" else self.dataset.kpr
+        if index < 0 or index >= len(source):
+            raise core.KirkprError(f"Vrstica {row_id} ne obstaja.")
+        return book, source[index]
+
+    def _selected_org_id(self) -> str:
+        if self.minimax_client is not None:
+            current = str(getattr(self.minimax_client, "organisation_id", "") or "")
+            if current:
+                return current
+        if self.selected_company:
+            return str(registry.company_org_id(self.selected_company) or "")
+        return str(self._profile_config().get("minimax_selected_org_id") or self.config.get("minimax_selected_org_id") or "")
+
+    def _sent_info_for(self, book: str, row: Mapping[str, Any]) -> dict[str, Any] | None:
+        profile = self._profile_config()
+        sent = profile.get("minimax_api_sent") or {}
+        if not isinstance(sent, dict):
+            return None
+        key = core.row_key(book, row)
+        mode_key = f"{self.api_transfer_mode}:{key}"
+        saved = sent.get(mode_key)
+        if saved is None and self.api_transfer_mode == "journal":
+            saved = sent.get(key)
+        if isinstance(saved, dict) and str(saved.get("organisation_id") or "") == self._selected_org_id():
+            return saved
+        return None
+
+    def _api_state_for_row(self, row_id: str, book: str, row: Mapping[str, Any]) -> tuple[str, str, str]:
+        runtime = self.api_row_states.get(row_id)
+        if runtime:
+            return (
+                str(runtime.get("status") or "ČAKA"),
+                str(runtime.get("detail") or ""),
+                str(runtime.get("tag") or ""),
+            )
+        flags: list[str] = []
+        if book == "PR":
+            metrics = core.pr_metrics(row)
+            if metrics["self_assessment"]:
+                flags.append("samoobdavčitev")
+            flags.append("DDV se odbija" if metrics["vat_deductible"] else "DDV se ne odbija")
+        vat_detail = ("; ".join(flags).capitalize() + ". ") if flags else ""
+        sent_info = self._sent_info_for(book, row)
+        if sent_info:
+            detail = vat_detail + str(sent_info.get("location") or sent_info.get("at") or "Lokalna sled ODDANO")
+            return "ODDANO", detail, "api_sent"
+        return "ČAKA", vat_detail + "Lokalni JSON — še ni usklajeno z Minimaxom.", "api_ready"
+
+    def _invoice_status_for_row(self, book: str, row: Mapping[str, Any]) -> str:
+        expected_org = str(registry.company_org_id(self.selected_company or {}) or "")
+        connected_org = str(getattr(self.minimax_client, "organisation_id", "") or "") if self.minimax_client else ""
+        if not expected_org or connected_org != expected_org:
+            return "Poveži API"
+        return "JSON"
+
+    def _set_row_state(self, row_id: str, status: str, detail: str, tag: str) -> None:
+        self.api_row_states[row_id] = {"status": status, "detail": detail, "tag": tag}
+
+    def _api_rows_payload(self, search: str = "", book_filter: str = "") -> dict[str, Any]:
+        wanted = (book_filter or self.api_view_filter or "ALL").upper()
+        if wanted not in {"ALL", "IR", "PR"}:
+            wanted = "ALL"
+        self.api_view_filter = wanted
+        self.api_search = search
+        if self.dataset is None:
+            state = self._state()
+            state.update({"rows": [], "count": 0, "visible": 0, "has_data": False, "api": self._api_public_state()})
+            return state
+        tokens = self._tokens(search)
+        ir_entries = [
+            (index, row)
+            for index, row in enumerate(self.dataset.kir)
+            if self._row_in_period("IR", row) and not core.ir_metrics(row, self.dataset.kpr)["tax_only"]
+        ]
+        ir_entries.sort(key=lambda item: gui_helpers.listina_sort_key(item[1].get("P3")))
+        pr_entries = [
+            (index, row)
+            for index, row in enumerate(self.dataset.kpr)
+            if self._row_in_period("PR", row)
+        ]
+        pr_entries.sort(key=lambda item: gui_helpers.listina_sort_key(item[1].get("P3")))
+        rows_out: list[dict[str, Any]] = []
+        total = 0
+        for book, entries in (("IR", ir_entries), ("PR", pr_entries)):
+            if wanted not in {"ALL", book}:
+                continue
+            for index, row in entries:
+                total += 1
+                if book == "IR":
+                    metrics = core.ir_metrics(row, self.dataset.kpr)
+                    party = str(row.get("P5") or "")
+                    tax_id = str(row.get("P6DS") or "")
+                    account = str(row.get("__konto__") or self.config.get("ir_revenue_account") or "7601")
+                else:
+                    metrics = core.pr_metrics(row)
+                    party = str(row.get("P6") or "")
+                    tax_id = str(row.get("P7DS") or "")
+                    account = str(row.get("__konto__") or self.config.get("pr_default_account") or "4190")
+                row_id = f"api:{book}:{index}"
+                api_status, detail, tag = self._api_state_for_row(row_id, book, row)
+                invoice_status = self._invoice_status_for_row(book, row)
+                account_label = self._account_label(account)
+                item = {
+                    "id": row_id,
+                    "book": book,
+                    "invoice": str(row.get("P3") or ""),
+                    "date": str(row.get("P5") or row.get("P2") or ""),
+                    "party": party,
+                    "tax_id": tax_id,
+                    "gross": _money(metrics["gross"]),
+                    "account": account_label,
+                    "invoice_status": invoice_status,
+                    "api_status": api_status,
+                    "detail": detail,
+                    "tag": tag,
+                }
+                chunks = [
+                    item["book"], item["invoice"], item["date"], item["party"], item["tax_id"],
+                    item["gross"], item["account"], invoice_status, api_status, detail, account_label,
+                ]
+                if not self._haystack_matches(tokens, chunks):
+                    continue
+                rows_out.append(item)
+        state = self._state()
+        state.update({
+            "rows": rows_out,
+            "count": total,
+            "visible": len(rows_out),
+            "has_data": True,
+            "api": self._api_public_state(),
+            "filter": wanted,
+        })
+        return state
+
+    def list_api(self, search: str = "", book_filter: str = "ALL") -> dict[str, Any]:
+        return self._api_rows_payload(search, book_filter)
+
+    def set_api_options(
+        self,
+        *,
+        mode: str = "",
+        journal_status: str = "",
+        due_days: str = "",
+        pr_companion_journal: bool | None = None,
+        numbering_ir_id: str = "",
+        numbering_pr_id: str = "",
+        item_ir_id: str = "",
+        vat_type_ir: str = "",
+        vat_type_pr: str | None = None,
+        persist: bool = True,
+    ) -> dict[str, Any]:
+        if mode:
+            self.api_transfer_mode = "invoice" if str(mode).strip().lower().startswith("invoice") or str(mode).startswith("Izdani") else "journal"
+        if journal_status:
+            self.api_journal_status = "P" if str(journal_status).strip().upper().startswith("P") else "O"
+        if due_days != "":
+            self.api_due_days = str(due_days).strip() or "8"
+        if pr_companion_journal is not None:
+            self.api_pr_companion_journal = bool(pr_companion_journal)
+        if numbering_ir_id != "":
+            self.api_ir_numbering_id = str(numbering_ir_id)
+        if numbering_pr_id != "":
+            self.api_pr_numbering_id = str(numbering_pr_id)
+        if item_ir_id != "":
+            self.api_ir_item_id = str(item_ir_id)
+        if vat_type_ir != "":
+            self.api_vat_type_ir = str(vat_type_ir)
+        if vat_type_pr is not None:
+            self.api_vat_type_pr = str(vat_type_pr)
+        if persist:
+            profile = self._profile_config()
+            selected_org = self._selected_org_id()
+            self.config["minimax_selected_org_id"] = selected_org
+            profile["minimax_selected_org_id"] = selected_org
+            self.config["minimax_journal_status"] = self.api_journal_status
+            self.config["minimax_api_transfer_mode"] = self.api_transfer_mode
+            profile["minimax_api_transfer_mode"] = self.api_transfer_mode
+            options = self._api_transfer_options()
+            profile["minimax_ir_numbering_id"] = options["numbering_ir_id"]
+            profile["minimax_pr_numbering_id"] = options["numbering_pr_id"]
+            profile["minimax_ir_item_id"] = options["item_ir_id"]
+            profile["minimax_due_days"] = options["due_days"]
+            profile["minimax_vat_type_ir"] = options["vat_type_ir"]
+            profile["minimax_vat_type_pr"] = options["vat_type_pr"]
+            profile["minimax_pr_companion_journal"] = options["pr_companion_journal"]
+            self._persist_config()
+        state = self._state()
+        state["msg"] = "Možnosti prenosa v Minimax so shranjene."
+        state["api"] = self._api_public_state()
+        return state
+
+    def connect_minimax_api(self, settings_path: str = "") -> dict[str, Any]:
+        if not self.selected_company:
+            raise core.KirkprError("Najprej izberite podjetje v levem seznamu.")
+        expected_org = str(registry.company_org_id(self.selected_company) or "").strip()
+        name = registry.company_name(self.selected_company)
+        if not expected_org:
+            raise core.KirkprError(f"Podjetje {name} nima vpisanega Minimax Org_ID.")
+        path = Path(str(settings_path or self.config.get("minimax_settings_path") or "").strip())
+        if not str(path) or not path.is_file():
+            raise core.KirkprError("Najprej v nastavitvah poti vpišite datoteko Minimax nastavitev.")
+        try:
+            settings = minimax_api.ApiSettings.from_file(path)
+            client = minimax_api.MinimaxClient(settings)
+            client.authenticate()
+            organisations = client.organisations()
+            if not organisations:
+                raise minimax_api.MinimaxApiError("Prijava je uspela, vendar API ni vrnil nobene organizacije.")
+            labels = [client.organisation_label(record) for record in organisations]
+            self.minimax_organisations = {
+                label: int(label.split(" — ", 1)[0]) for label in labels if label.split(" — ", 1)[0].isdigit()
+            }
+            match_label = next(
+                (label for label, organisation_id in self.minimax_organisations.items() if str(organisation_id) == expected_org),
+                "",
+            )
+            if not match_label:
+                self.minimax_client = client
+                self.minimax_org_label = ""
+                self.api_status_message = f"Org_ID {expected_org} ni dostopen s prijavljenim Minimax uporabnikom."
+                raise core.KirkprError(
+                    f"Org_ID {expected_org} ni dostopen s prijavljenim Minimax uporabnikom. Podjetje: {name}."
+                )
+            client.select_organisation(int(expected_org))
+            client.refresh_references()
+            effective_date = self.dataset.period_to if self.dataset else date.today().isoformat()
+            ir_numberings = client.document_numbering_catalog("IR")
+            pr_numberings = client.document_numbering_catalog("PR")
+            items = client.item_catalog()
+            vat_types = client.vat_accounting_type_catalog(str(effective_date or ""))
+            accounts = client.account_catalog()
+        except minimax_api.MinimaxApiError as exc:
+            raise core.KirkprError(str(exc)) from exc
+        self.minimax_client = client
+        self.minimax_org_label = match_label
+        self.account_catalog = {
+            str(item.get("code") or ""): str(item.get("name") or "")
+            for item in (accounts or [])
+            if item.get("code")
+        }
+        self.api_catalogs = {
+            "ir_numberings": _jsonable(ir_numberings or []),
+            "pr_numberings": _jsonable(pr_numberings or []),
+            "items": _jsonable(items or []),
+            "vat_types": _jsonable(vat_types or []),
+        }
+        try:
+            self.api_reference_warnings = list(client.reference_warnings() or [])
+        except Exception:
+            self.api_reference_warnings = []
+        self.set_api_options(persist=True)
+        counts = ""
+        try:
+            # refresh_references je že poklican; števila so samo za statusno vrstico.
+            counts = (
+                f"Šifranti: konti {len(accounts or [])}, "
+                f"številčenja IR {len(ir_numberings or [])}, PR {len(pr_numberings or [])}."
+            )
+        except Exception:
+            counts = ""
+        warn = f"  •  opozorila šifrantov: {len(self.api_reference_warnings)}" if self.api_reference_warnings else ""
+        self.api_status_message = f"OAuth prijava je uspela; organizacija {match_label}. {counts}{warn}".strip()
+        self.api_row_states = {}
+        state = self._api_rows_payload(self.api_search, self.api_view_filter)
+        state["msg"] = self.api_status_message
+        return state
+
+    def _collect_api_rows(self, ids: list[str], *, skip_sent: bool = False) -> list[tuple[str, str, dict[str, Any]]]:
+        selected: list[tuple[str, str, dict[str, Any]]] = []
+        for row_id in ids:
+            book, row = self._api_item_row(str(row_id))
+            item_id = str(row_id)
+            status, _detail, _tag = self._api_state_for_row(item_id, book, row)
+            if skip_sent and status == "ODDANO":
+                continue
+            selected.append((item_id, book, row))
+        selected.sort(
+            key=lambda entry: (
+                0 if entry[1] == "IR" else 1,
+                gui_helpers.listina_sort_key(entry[2].get("P3")),
+            )
+        )
+        return selected
+
+    def validate_api_selection(self, ids: list[str] | None = None) -> dict[str, Any]:
+        self._require_api()
+        assert self.minimax_client is not None and self.dataset is not None
+        if ids:
+            selected = self._collect_api_rows([str(i) for i in ids], skip_sent=True)
+        else:
+            raise core.KirkprError("Izberite enega ali več še neoddanih računov.")
+        if not selected:
+            raise core.KirkprError("Izberite enega ali več še neoddanih računov.")
+        try:
+            self.save_accounts()
+        except core.KirkprError:
+            pass
+        for item_id, _book, _row in selected:
+            self._set_row_state(item_id, "PREVERJAM", "Preverjam partnerja, konte, DDV stopnje in ravnotežje …", "api_ready")
+        status = self.api_journal_status
+        mode = self.api_transfer_mode
+        options = self._api_transfer_options()
+        try:
+            results = self.minimax_client.validate_rows(
+                self.dataset,
+                [(book, row) for _item, book, row in selected],
+                status=status,
+                mode=mode,
+                options=options,
+            )
+        except minimax_api.MinimaxApiError as exc:
+            raise core.KirkprError(str(exc)) from exc
+        ok = 0
+        for (item_id, _book, _row), result in zip(selected, results):
+            state = str((result or {}).get("status") or "NAPAKA")
+            detail = str((result or {}).get("detail") or "")
+            tag = "api_ok" if state == "OK" else "api_error"
+            self._set_row_state(item_id, state, detail, tag)
+            ok += state == "OK"
+        self.api_status_message = f"Predpreverjanje: {ok} od {len(results)} računov je pripravljenih za oddajo."
+        payload = self._api_rows_payload(self.api_search, self.api_view_filter)
+        payload["msg"] = self.api_status_message
+        payload["validated"] = ok
+        payload["total"] = len(results)
+        payload["all_ok"] = bool(results) and ok == len(results)
+        return payload
+
+    def preview_api_send(self, ids: list[str] | None = None) -> dict[str, Any]:
+        self._require_api()
+        if not ids:
+            raise core.KirkprError("Izberite račune za oddajo.")
+        selected = self._collect_api_rows([str(i) for i in ids], skip_sent=False)
+        if not selected:
+            raise core.KirkprError("Izberite račune za oddajo.")
+        not_ready = [item_id for item_id, book, row in selected if self._api_state_for_row(item_id, book, row)[0] != "OK"]
+        if not_ready:
+            raise core.KirkprError("Oddati je mogoče samo vrstice s stanjem OK. Kliknite »Predpreveri izbrane«.")
+        prompt = self._send_confirm_prompt(selected)
+        return {
+            "ok": True,
+            "prompt": prompt,
+            "ir_count": sum(book == "IR" for _i, book, _r in selected),
+            "pr_count": sum(book == "PR" for _i, book, _r in selected),
+            "mode": self.api_transfer_mode,
+            "status": self.api_journal_status,
+        }
+
+    def _send_confirm_prompt(self, selected: list[tuple[str, str, dict[str, Any]]]) -> str:
+        status = self.api_journal_status
+        mode = self.api_transfer_mode
+        options = self._api_transfer_options()
+        status_label = "osnutek računa" if mode == "invoice" else ("osnutek" if status == "O" else "potrjeno")
+        org_label = self.minimax_org_label or self._selected_org_id()
+        ir_count = sum(book == "IR" for _item, book, _row in selected)
+        pr_count = sum(book == "PR" for _item, book, _row in selected)
+        if mode == "invoice":
+            if options.get("pr_companion_journal") and pr_count:
+                document_lines = (
+                    f"Izdani računi (osnutki): {ir_count}\nPrejeti računi (osnutki): {pr_count}\n"
+                    f"Ločene PR temeljnice z odhodkom in DDV (osnutki): {pr_count}\n\n"
+                    "POZOR: PR in spremljevalna temeljnica nista API-povezana. V Minimaxu potrdite samo enega; "
+                    "potrditev obeh bi podvojila obveznost do dobavitelja."
+                )
+            else:
+                document_lines = (
+                    f"Izdani računi (osnutki): {ir_count}\nPrejeti računi (osnutki): {pr_count}\n"
+                    "IR se po pregledu v Minimaxu izda. Pri PR je po prenosu treba ročno dodati konto/strošek in DDV ter račun potrditi."
+                )
+        else:
+            document_lines = (
+                f"Izdane temeljnice: {ir_count}\nPrejete temeljnice: {pr_count}\n"
+                "Po temeljnici bo program z ločenim klicem dodal in preveril še DDV-vrstico."
+            )
+        return (
+            f"Organizacija: {org_label}\n"
+            f"{document_lines}\n"
+            f"Stanje: {status_label}\n\n"
+            "Dokumenti bodo neposredno ustvarjeni v Minimaxu. Nadaljujem?"
+        )
+
+    @staticmethod
+    def _is_confirmed(confirm: Any) -> bool:
+        if confirm is True:
+            return True
+        if confirm is False or confirm is None:
+            return False
+        return str(confirm).strip().lower() in {"true", "1", "yes", "da"}
+
+    def send_api_selection(
+        self,
+        ids: list[str] | None = None,
+        *,
+        confirm: Any = False,
+        summary_dir: str = "",
+    ) -> dict[str, Any]:
+        if not self._is_confirmed(confirm):
+            raise core.KirkprError("Oddaja v Minimax je dovoljena samo po potrditvi v vmesniku.")
+        self._require_api()
+        assert self.minimax_client is not None and self.dataset is not None
+        if not ids:
+            raise core.KirkprError("Izberite račune za oddajo.")
+        selected = self._collect_api_rows([str(i) for i in ids], skip_sent=False)
+        if not selected:
+            raise core.KirkprError("Izberite račune za oddajo.")
+        not_ready = [item_id for item_id, book, row in selected if self._api_state_for_row(item_id, book, row)[0] != "OK"]
+        if not_ready:
+            raise core.KirkprError("Oddati je mogoče samo vrstice s stanjem OK. Kliknite »Predpreveri izbrane«.")
+        status = self.api_journal_status
+        mode = self.api_transfer_mode
+        options = self._api_transfer_options()
+        org_label = self.minimax_org_label or self._selected_org_id()
+        for item_id, book, _row in selected:
+            detail = (
+                "Ustvarjam PR-osnutek in ločeno osnutno temeljnico …"
+                if mode == "invoice" and options.get("pr_companion_journal") and book == "PR"
+                else "Ustvarjam osnutek računa v Minimaxu …"
+            ) if mode == "invoice" else "Pošiljam temeljnico in DDV v Minimax …"
+            self._set_row_state(item_id, "ODDAJAM", detail, "api_ready")
+        results: list[dict[str, Any]] = []
+        for item_id, book, row in selected:
+            reference = str(row.get("P3") or "")
+            try:
+                response = self.minimax_client.send_row(
+                    self.dataset,
+                    book,
+                    row,
+                    status=status,
+                    mode=mode,
+                    options=options,
+                )
+                detail = getattr(response, "location", None) or f"HTTP {getattr(response, 'status', '')}".strip()
+                results.append({"item": item_id, "book": book, "row": row, "ok": True, "detail": detail, "invoice": reference})
+            except Exception as exc:
+                results.append({"item": item_id, "book": book, "row": row, "ok": False, "detail": str(exc), "invoice": reference})
+        sent_map = self._profile_config().setdefault("minimax_api_sent", {})
+        ok = 0
+        summary_rows: list[dict[str, Any]] = []
+        for result in results:
+            item_id = result["item"]
+            reference = result["invoice"]
+            if result["ok"]:
+                ok += 1
+                self._set_row_state(item_id, "ODDANO", result["detail"], "api_sent")
+                key = f"{mode}:{core.row_key(result['book'], result['row'])}"
+                sent_info = {
+                    "organisation_id": self._selected_org_id(),
+                    "location": result["detail"],
+                    "mode": mode,
+                    "at": datetime.now().astimezone().isoformat(timespec="seconds"),
+                }
+                sent_map[key] = sent_info
+                summary_rows.append({"book": result["book"], "invoice": reference, "ok": True, "location": result["detail"]})
+            else:
+                self._set_row_state(item_id, "NAPAKA", result["detail"], "api_error")
+                summary_rows.append({"book": result["book"], "invoice": reference, "ok": False, "error": result["detail"]})
+        failed = len(results) - ok
+        self._persist_config()
+        summary_path = self._write_api_send_summary(
+            org_label=org_label,
+            mode=mode,
+            status=status,
+            ok=ok,
+            failed=failed,
+            rows=summary_rows,
+            summary_dir=summary_dir,
+        )
+        self.api_status_message = f"API oddaja zaključena: uspešno {ok}, napake {failed}."
+        payload = self._api_rows_payload(self.api_search, self.api_view_filter)
+        payload["msg"] = self.api_status_message
+        payload["sent"] = ok
+        payload["failed"] = failed
+        if summary_path:
+            payload["summary_path"] = str(summary_path)
+        return payload
+
+    def retry_failed_api_rows(self) -> dict[str, Any]:
+        """Označi vrstice NAPAKA in jih predpreveri. Oddaja ostane na gumbu Oddaj z potrditvijo."""
+        self._require_api()
+        failed = [
+            row_id
+            for row_id, state in self.api_row_states.items()
+            if str(state.get("status") or "") == "NAPAKA"
+        ]
+        if not failed:
+            raise core.KirkprError("Ni vrstic s stanjem NAPAKA.")
+        payload = self.validate_api_selection(failed)
+        if payload.get("all_ok"):
+            payload["msg"] = (
+                f"Predpreverjanje je uspelo za {payload.get('validated') or 0} prej neuspešnih računov. "
+                "Za oddajo kliknite »Oddaj izbrane« in potrdite v pogovornem oknu."
+            )
+        else:
+            payload["msg"] = (
+                "Ponovi NAPAKA: predpreverjanje ni popolno. Podrobnosti so v stolpcu Rezultat / napaka. "
+                "Oddaja se ne zažene samodejno."
+            )
+        self.api_status_message = str(payload["msg"])
+        return payload
+
+    def _write_api_send_summary(
+        self,
+        *,
+        org_label: str,
+        mode: str,
+        status: str,
+        ok: int,
+        failed: int,
+        rows: list[dict[str, Any]],
+        summary_dir: str = "",
+    ) -> Path | None:
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        payload = {
+            "app_version": APP_VERSION,
+            "at": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "organisation": org_label,
+            "mode": mode,
+            "status": status,
+            "ok": ok,
+            "failed": failed,
+            "rows": _jsonable(rows),
+        }
+        folder: Path | None = None
+        if summary_dir:
+            folder = Path(summary_dir)
+        else:
+            paths = self._company_paths()
+            if paths is not None:
+                folder = paths.workspace / "API_oddaje"
+            else:
+                folder = self.base_dir / "API_oddaje"
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            target = folder / f"api_oddaja_{stamp}.json"
+            target.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            return target
+        except OSError:
+            return None
+
+    def download_invoice_attachments(self, row_id: str, out_dir: str = "") -> dict[str, Any]:
+        self._require_api()
+        book, row = self._api_item_row(row_id)
+        if book != "PR":
+            raise core.KirkprError("Priponke dobavitelja so na voljo pri prejetem računu.")
+        record_id = self._sent_invoice_id(book, row)
+        if not record_id:
+            raise core.KirkprError(
+                "Za izbrani PR ni shranjen dejanski ReceivedInvoiceId. Najprej osvežite statuse ali ustvarite PR prek API."
+            )
+        if not out_dir:
+            raise core.KirkprError("Izberite mapo za priponke.")
+        target_dir = Path(out_dir)
+        partner = str(row.get("P6") or "Dobavitelj").strip()
+        reference = str(row.get("P3") or record_id).strip()
+        client = self.minimax_client
+        try:
+            attachments = client.invoice_attachments("PR", record_id)
+            if not attachments:
+                raise minimax_api.MinimaxApiError(
+                    f"PR {reference} ({partner}) v Minimaxu nima priponk."
+                )
+            written: list[Path] = []
+            target_dir.mkdir(parents=True, exist_ok=True)
+            for attachment in attachments:
+                filename, data = client.attachment_file(attachment)
+                destination = target_dir / filename
+                counter = 2
+                while destination.exists():
+                    destination = target_dir / f"{Path(filename).stem}_{counter}{Path(filename).suffix}"
+                    counter += 1
+                destination.write_bytes(data)
+                written.append(destination)
+        except minimax_api.MinimaxApiError as exc:
+            raise core.KirkprError(str(exc)) from exc
+        self.api_status_message = f"Prenesenih priponk: {len(written)} za PR {reference} ({partner})."
+        profile = self._profile_config()
+        profile["last_output_dir"] = str(target_dir)
+        self.config["last_output_dir"] = str(target_dir)
+        self._persist_config()
+        state = self._api_rows_payload(self.api_search, self.api_view_filter)
+        state["msg"] = self.api_status_message
+        state["files"] = [str(path) for path in written]
+        state["out_dir"] = str(target_dir)
+        return state
+
+    def _sent_invoice_id(self, book: str, row: Mapping[str, Any]) -> str:
+        sent = self._sent_info_for(book, row) or {}
+        location = str(sent.get("location") or "")
+        if not location:
+            return ""
+        try:
+            import minimax_playwright as minimax_browser
+            resource = "issuedinvoices" if book == "IR" else "receivedinvoices"
+            record_id = minimax_browser.extract_minimax_record_id(location, resource)
+            return str(record_id or "")
+        except Exception:
+            return ""
+
+    def import_attachment_from_folder(
+        self,
+        row_id: str,
+        sources: list[str] | None = None,
+        dest_dir: str = "",
+    ) -> dict[str, Any]:
+        if self.dataset is None:
+            raise core.KirkprError("Najprej odprite KIR/KPR datoteko.")
+        book, row = self._api_item_row(row_id)
+        if book != "PR":
+            raise core.KirkprError("Najprej označite natanko en PR.")
+        paths_in = [Path(p) for p in (sources or []) if str(p).strip()]
+        if not paths_in:
+            raise core.KirkprError("Izberite priponke.")
+        if dest_dir:
+            destination = Path(dest_dir)
+        else:
+            paths = self._company_paths()
+            if paths is None:
+                raise core.KirkprError("Manjka korenska mapa TROPS ali izbrano podjetje za mapo priponk.")
+            reference = registry.safe_name(row.get("P3"), "PR")
+            partner = registry.safe_name(row.get("P6"), "dobavitelj")
+            destination = paths.workspace / "Priponke" / f"{reference}_{partner}"
+        destination.mkdir(parents=True, exist_ok=True)
+        copied: list[Path] = []
+        for source in paths_in:
+            if not source.is_file():
+                raise core.KirkprError(f"Datoteka ne obstaja: {source}")
+            target = destination / source.name
+            counter = 2
+            while target.exists():
+                target = destination / f"{source.stem}_{counter}{source.suffix}"
+                counter += 1
+            shutil.copy2(source, target)
+            copied.append(target)
+        self.api_status_message = f"V dinamično mapo je kopiranih {len(copied)} priponk."
+        state = self._api_rows_payload(self.api_search, self.api_view_filter)
+        state["msg"] = self.api_status_message + f"\n{destination}"
+        state["files"] = [str(path) for path in copied]
+        state["out_dir"] = str(destination)
+        return state
+
+    def download_supplier_issued_attachment(self, row_id: str, out_dir: str = "") -> dict[str, Any]:
+        self._require_api()
+        book, row = self._api_item_row(row_id)
+        if book != "PR":
+            raise core.KirkprError("Najprej označite en PR dobavitelja QUICK M.B.")
+        supplier = str(row.get("P6") or "").strip()
+        if "QUICK" not in supplier.upper():
+            raise core.KirkprError("Izbrani PR ni dobavitelja QUICK M.B.")
+        if out_dir:
+            target_dir = Path(out_dir)
+        else:
+            paths = self._company_paths()
+            if paths is None:
+                raise core.KirkprError("Manjka korenska mapa TROPS ali izbrano podjetje za mapo priponk.")
+            reference = registry.safe_name(row.get("P3"), "PR")
+            target_dir = paths.attachments / f"{reference}_QUICK_MB"
+        metrics = core.pr_metrics(row)
+        customer_name = registry.company_name(self.selected_company or {})
+        customer_tax = registry.company_tax_number(self.selected_company or {})
+        start, end = self._filter_iso_bounds()
+        client = self.minimax_client
+        try:
+            invoice, attachments = client.supplier_issued_invoice_attachments(
+                supplier_name=supplier,
+                customer_name=customer_name,
+                customer_tax_id=customer_tax,
+                gross_total=core.decimal_value(metrics["gross"]),
+                invoice_date=str(row.get("P5") or row.get("P2") or ""),
+                date_from=start,
+                date_to=end,
+            )
+            if not attachments:
+                raise minimax_api.MinimaxApiError("Najdeni IR QUICK M.B. nima API priponke/PDF.")
+            target_dir.mkdir(parents=True, exist_ok=True)
+            written: list[Path] = []
+            for attachment in attachments:
+                filename, data = client.attachment_file(attachment)
+                target = target_dir / filename
+                counter = 2
+                while target.exists():
+                    target = target_dir / f"{Path(filename).stem}_{counter}{Path(filename).suffix}"
+                    counter += 1
+                target.write_bytes(data)
+                written.append(target)
+        except minimax_api.MinimaxApiError as exc:
+            raise core.KirkprError(str(exc)) from exc
+        number = ""
+        try:
+            number = minimax_api.supplier_invoice_number(invoice) or str((invoice or {}).get("IssuedInvoiceId") or "")
+        except Exception:
+            number = str((invoice or {}).get("IssuedInvoiceId") or "")
+        self.api_status_message = f"IR QUICK M.B. {number}: prenesenih priponk {len(written)}."
+        self._profile_config()["last_output_dir"] = str(target_dir)
+        self.config["last_output_dir"] = str(target_dir)
+        self._persist_config()
+        state = self._api_rows_payload(self.api_search, self.api_view_filter)
+        state["msg"] = self.api_status_message + "\n" + str(target_dir)
+        state["files"] = [str(path) for path in written]
+        state["out_dir"] = str(target_dir)
+        return state
 
     def log_path(self) -> dict[str, Any]:
         import kirkpr_logging

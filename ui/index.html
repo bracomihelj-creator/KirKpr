@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>KIR/KPR → Minimax Studio 5.0.06</title>
+  <title>KIR/KPR → Minimax Studio 5.0.07</title>
   <link rel="stylesheet" href="/ui/app.css">
 </head>
 <body>
@@ -65,7 +65,7 @@
   <aside class="sidebar" id="sidebar">
     <div class="brand">
       <div class="logo">K</div>
-      <div class="brandText"><b>KirKpr</b><span id="brandVer">5.0.06</span></div>
+      <div class="brandText"><b>KirKpr</b><span id="brandVer">5.0.07</span></div>
     </div>
     <nav class="nav" id="nav">
       <div class="navLbl">Evidence</div>
@@ -204,7 +204,44 @@
       <div class="tableWrap"><table class="grid" id="tblKnjiga"></table></div>
     </div>
     <div class="page hidden" data-page="api" id="page-api">
-      <div class="empty" style="padding:40px 22px">Minimax API povezava, predpreverjanje, oddaja in »Ponovi NAPAKA« bodo v naslednjem koraku. Izračuni in oddaja ostajajo nespremenjeni v obstoječi kodi.</div>
+      <div class="bookTools" id="apiTools" style="margin:0 22px 10px">
+        <span class="muted" id="apiConnLabel">Minimax API ni povezan.</span>
+        <button class="btn" type="button" id="apiConnectBtn">Poveži API</button>
+        <label class="fld compact">Način
+          <select id="apiMode">
+            <option value="journal">Temeljnica + DDV</option>
+            <option value="invoice">Izdani/Prejeti račun — osnutek</option>
+          </select>
+        </label>
+        <label class="fld compact">Stanje
+          <select id="apiJournalStatus">
+            <option value="O">Osnutek</option>
+            <option value="P">Potrjeno</option>
+          </select>
+        </label>
+        <label class="chk"><input type="checkbox" id="apiPrCompanion"> PR spremljevalna temeljnica</label>
+        <label class="fld compact">Rok (dni)<input id="apiDueDays" value="8"></label>
+        <label class="fld compact">Številčenje IR<select id="apiIrNumbering"></select></label>
+        <label class="fld compact">Številčenje PR<select id="apiPrNumbering"></select></label>
+        <label class="fld compact">Artikel IR<select id="apiIrItem"></select></label>
+        <label class="fld compact">Vrsta DDV IR<select id="apiVatIr"></select></label>
+        <label class="fld compact">Vrsta DDV PR<select id="apiVatPr"></select></label>
+        <button class="btn ghost" type="button" id="apiSaveOptsBtn">Shrani možnosti</button>
+      </div>
+      <div class="bookTools" style="margin:0 22px 10px">
+        <button class="btn" type="button" id="apiFilterAll" data-api-filter="ALL">Vsi</button>
+        <button class="btn ghost" type="button" id="apiFilterIr" data-api-filter="IR">IR</button>
+        <button class="btn ghost" type="button" id="apiFilterPr" data-api-filter="PR">PR</button>
+        <label class="fld compact grow">Iskanje<input id="apiSearch" placeholder="Listina, partner, status…"></label>
+        <button class="btn" type="button" id="apiValidateBtn">Predpreveri izbrane</button>
+        <button class="btn" type="button" id="apiSendBtn">Oddaj izbrane</button>
+        <button class="btn" type="button" id="apiRetryBtn">Ponovi NAPAKA</button>
+        <button class="btn ghost" type="button" id="apiAttachBtn">Prenesi priponke PR</button>
+        <button class="btn ghost" type="button" id="apiImportAttBtn">Priponka iz mape</button>
+        <button class="btn ghost" type="button" id="apiSupplierAttBtn">IR QUICK M.B. PDF</button>
+        <span class="muted" id="apiSummary"></span>
+      </div>
+      <div class="tableWrap"><table class="grid" id="tblApi"></table></div>
     </div>
     <div class="page hidden" data-page="settings" id="page-settings">
       <div style="padding:8px 22px 22px;max-width:720px;display:flex;flex-direction:column;gap:12px">
@@ -219,7 +256,7 @@
     </div>
     <div class="page hidden" data-page="about" id="page-about">
       <div style="padding:8px 22px 22px;max-width:720px" id="aboutBox">
-        <p><b>KIR/KPR → Minimax Studio 5.0.06</b> — vmesnik WebView2 po zgledu Trops Studio 5.</p>
+        <p><b>KIR/KPR → Minimax Studio 5.0.07</b> — vmesnik WebView2 po zgledu Trops Studio 5.</p>
         <p>Tk vmesnik 4.0.3 ostane v mapi (KirKpr_V4.0.3.pyw), dokler 5.x ne pokrije vseh zaslonov.</p>
         <p>Izračuni DDV, XML in oddaja v Minimax se v tej različici ne spreminjajo.</p>
       </div>

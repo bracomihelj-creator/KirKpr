@@ -80,6 +80,28 @@ class Bridge:
     def pick_folder(self) -> str:
         return self._dialog("FOLDER", directory=True)
 
+    def pick_files(self, file_types: Any = None) -> list[str]:
+        try:
+            import webview
+        except Exception:
+            return []
+        wins = webview.windows
+        if not wins:
+            return []
+        fd = getattr(webview, "FileDialog", None)
+        kind = getattr(fd, "OPEN", None) if fd else None
+        if kind is None:
+            kind = getattr(webview, "OPEN_DIALOG", 10)
+        kwargs: Dict[str, Any] = {"allow_multiple": True}
+        if file_types:
+            kwargs["file_types"] = tuple(file_types) if isinstance(file_types, (list, tuple)) else (file_types,)
+        result = wins[0].create_file_dialog(kind, **kwargs)
+        if not result:
+            return []
+        if isinstance(result, (list, tuple)):
+            return [str(path) for path in result if path]
+        return [str(result)]
+
     def pick_settings_file(self) -> str:
         return self._dialog("OPEN", ("JSON (*.json)", "Vse (*.*)"))
 
@@ -243,6 +265,15 @@ class Handler(BaseHTTPRequestHandler):
                     ),
                 )
                 return
+            if path == "/api/minimax":
+                self._json_resp(
+                    200,
+                    s.list_api(
+                        str((q.get("q") or [""])[0]),
+                        str((q.get("book") or ["ALL"])[0]),
+                    ),
+                )
+                return
             if path == "/api/ddvo/quote":
                 self._json_resp(200, s.virman_quote((q.get("konto62") or ["0"])[0]))
                 return
@@ -340,6 +371,12 @@ LONG_ACTIONS = {
     "refresh_knjige_from_api": "Branje knjig iz Minimax API",
     "open_session": "Odpiranje seje",
     "save_accounts": "Shranjevanje kontov",
+    "connect_minimax_api": "Prijava v Minimax API",
+    "validate_api_selection": "Predpreverjanje Minimax API",
+    "send_api_selection": "Oddaja v Minimax API",
+    "retry_failed_api_rows": "Ponovi NAPAKA",
+    "download_invoice_attachments": "Prenos priponk PR",
+    "download_supplier_issued_attachment": "Prenos IR QUICK M.B.",
 }
 
 
@@ -386,6 +423,40 @@ def _actions(s: KirKprService) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
         "set_auto_reopen": lambda b: s.set_auto_reopen(bool(b.get("enabled"))),
         "set_theme": lambda b: s.set_theme(str(b.get("theme") or "light")),
         "save_accounts": lambda b: s.save_accounts(),
+        "connect_minimax_api": lambda b: s.connect_minimax_api(str(b.get("settings_path") or b.get("path") or "")),
+        "set_api_options": lambda b: s.set_api_options(
+            mode=str(b.get("mode") or ""),
+            journal_status=str(b.get("journal_status") or ""),
+            due_days=str(b.get("due_days") if b.get("due_days") is not None else ""),
+            pr_companion_journal=bool(b.get("pr_companion_journal")) if "pr_companion_journal" in b else None,
+            numbering_ir_id=str(b.get("numbering_ir_id") or ""),
+            numbering_pr_id=str(b.get("numbering_pr_id") or ""),
+            item_ir_id=str(b.get("item_ir_id") or ""),
+            vat_type_ir=str(b.get("vat_type_ir") or ""),
+            vat_type_pr=str(b.get("vat_type_pr")) if "vat_type_pr" in b else None,
+            persist=b.get("persist", True),
+        ),
+        "validate_api_selection": lambda b: s.validate_api_selection(list(b.get("ids") or [])),
+        "preview_api_send": lambda b: s.preview_api_send(list(b.get("ids") or [])),
+        "send_api_selection": lambda b: s.send_api_selection(
+            list(b.get("ids") or []),
+            confirm=b.get("confirm", False),
+            summary_dir=str(b.get("summary_dir") or ""),
+        ),
+        "retry_failed_api_rows": lambda b: s.retry_failed_api_rows(),
+        "download_invoice_attachments": lambda b: s.download_invoice_attachments(
+            str(b.get("id") or b.get("row_id") or ""),
+            out_dir=str(b.get("out_dir") or ""),
+        ),
+        "import_attachment_from_folder": lambda b: s.import_attachment_from_folder(
+            str(b.get("id") or b.get("row_id") or ""),
+            list(b.get("sources") or b.get("paths") or []),
+            dest_dir=str(b.get("dest_dir") or b.get("out_dir") or ""),
+        ),
+        "download_supplier_issued_attachment": lambda b: s.download_supplier_issued_attachment(
+            str(b.get("id") or b.get("row_id") or ""),
+            out_dir=str(b.get("out_dir") or ""),
+        ),
     }
 
 
