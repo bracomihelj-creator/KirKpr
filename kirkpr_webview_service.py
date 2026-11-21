@@ -7,6 +7,7 @@ Samo kliče kirkpr_minimax_core, register podjetij in pomožne funkcije obdobja.
 from __future__ import annotations
 
 import copy
+import tempfile
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
@@ -16,7 +17,7 @@ import kirkpr_company_registry as registry
 import kirkpr_minimax_core as core
 import convert_KIrKpr_to_minimax as gui_helpers
 
-APP_VERSION = "5.0.03"
+APP_VERSION = "5.0.04"
 APP_TITLE = "KIR/KPR \u2192 Minimax Studio"
 APP_EDITION = "WebView2"
 
@@ -867,3 +868,239 @@ class KirKprService:
         state["normalized"] = _jsonable(normalized)
         state["msg"] = f"Spremenjeno {field}; izvorna vrednost je ostala nespremenjena."
         return state
+
+
+    def _ddvo_view_or_error(self) -> core.KirkprDataset:
+        if self.dataset is None:
+            raise core.KirkprError("Najprej odprite KIR/KPR datoteko.")
+        return self._ddvo_view_dataset() or self.dataset
+
+    def _ddvo_taxpayer_kwargs(self) -> dict[str, str]:
+        firm = ""
+        address = ""
+        contact_name = str(self.config.get("ddvo_contact_name") or "").strip()
+        contact_phone = str(self.config.get("ddvo_contact_phone") or "").strip()
+        if self.selected_company:
+            firm = (
+                str(self.selected_company.get("Dolgo") or "").strip()
+                or registry.company_name(self.selected_company)
+            )
+            for key in ("NASLOV", "Naslov", "address", "sedez", "naslov", "street"):
+                address = str(self.selected_company.get(key) or "").strip()
+                if address:
+                    break
+            if not contact_phone:
+                for key in ("Telefon", "Telefon odg osebe", "phone"):
+                    contact_phone = str(self.selected_company.get(key) or "").strip()
+                    if contact_phone:
+                        break
+        return {
+            "company_name": firm,
+            "address": address,
+            "contact_name": contact_name,
+            "contact_phone": contact_phone,
+        }
+
+    def _ddvo_initial_dir(self, out_dir: str = "") -> Path:
+        if out_dir:
+            path = Path(out_dir).expanduser()
+            path.mkdir(parents=True, exist_ok=True)
+            return path
+        paths = None
+        if self.selected_company:
+            start = self.period_from.isoformat() if self.period_from else (self.dataset.period_from if self.dataset else "")
+            end = self.period_to.isoformat() if self.period_to else (self.dataset.period_to if self.dataset else "")
+            try:
+                paths = registry.company_paths(
+                    self.selected_company,
+                    start,
+                    end,
+                    trops_root=registry.resolve_trops_root(str(self.config.get("trops_root") or "") or None),
+                )
+            except ValueError:
+                paths = None
+        profile = self._profile_config()
+        for candidate in (
+            paths.ddv_root if paths else None,
+            Path(str(profile.get("last_output_dir") or "")),
+            Path(str(self.config.get("last_output_dir") or "")),
+            self.dataset.source_path.parent if self.dataset else None,
+        ):
+            if candidate and Path(candidate).is_dir():
+                return Path(candidate)
+        fallback = (self.dataset.source_path.parent if self.dataset else Path.cwd())
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
+
+    def _remember_output_dir(self, folder: Path, action: str, detail: str) -> None:
+        self.config["last_output_dir"] = str(folder)
+        self._profile_config()["last_output_dir"] = str(folder)
+        self.config["last_action"] = action
+        self.config["last_action_detail"] = detail
+        self._persist_config()
+
+    def export_ddvo(self, kind: str = "both", target: str = "", out_dir: str = "") -> dict[str, Any]:
+        import kirkpr_ddvo_pdf as ddvo_pdf
+        import kirkpr_ddvo_xml as ddvo_xml
+
+        view = self._ddvo_view_or_error()
+        kind = str(kind or "both").strip().lower()
+        folder = self._ddvo_initial_dir(out_dir)
+        paths: dict[str, str] = {}
+        if kind in {"report", "pregled"}:
+            name = f"DDV-O_kontrolni_pregled_{view.period_from}_{view.period_to}.txt"
+            path = Path(target) if target else folder / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(core.ddvo_control_report(view), encoding="utf-8-sig")
+            paths["report"] = str(path)
+            self._remember_output_dir(path.parent, "ddvo_report", path.name)
+            state = self._state()
+            state["export_paths"] = dict(paths)
+            state["msg"] = f"Kontrolni pregled DDV-O je shranjen: {path.name}"
+            return state
+        if kind in {"pdf", "xml", "both", "pdf_xml", "export"}:
+            pdf_path = Path(target) if (target and kind == "pdf") else folder / ddvo_pdf.default_ddvo_pdf_name(view)
+            xml_path = Path(target) if (target and kind == "xml") else folder / ddvo_xml.default_ddvo_xml_name(view)
+            taxpayer = self._ddvo_taxpayer_kwargs()
+            if kind in {"pdf", "both", "pdf_xml", "export"}:
+                pdf_path.parent.mkdir(parents=True, exist_ok=True)
+                ddvo_pdf.build_ddvo_pdf(view, pdf_path, **taxpayer)
+                paths["pdf"] = str(pdf_path)
+            if kind in {"xml", "both", "pdf_xml", "export"}:
+                xml_path.parent.mkdir(parents=True, exist_ok=True)
+                ddvo_xml.write_ddvo_xml(view, xml_path, **taxpayer)
+                paths["xml"] = str(xml_path)
+            action = "ddvo_export" if "pdf" in paths and "xml" in paths else ("ddvo_pdf" if "pdf" in paths else "ddvo_xml")
+            detail = " + ".join(Path(p).name for p in paths.values())
+            self._remember_output_dir(Path(next(iter(paths.values()))).parent, action, detail)
+            state = self._state()
+            state["export_paths"] = paths
+            state["msg"] = f"DDV-O shranjen: {detail}"
+            return state
+        raise core.KirkprError("Neznana vrsta izvoza DDV-O.")
+
+    def preview_ddvo(self, open_file: bool = False) -> dict[str, Any]:
+        import kirkpr_ddvo_pdf as ddvo_pdf
+
+        view = self._ddvo_view_or_error()
+        target = Path(tempfile.gettempdir()) / ddvo_pdf.default_ddvo_pdf_name(view)
+        ddvo_pdf.build_ddvo_pdf(view, target, **self._ddvo_taxpayer_kwargs())
+        html_path = target.with_suffix(".html")
+        ddvo_pdf.write_ddvo_preview_html(view, html_path, **self._ddvo_taxpayer_kwargs())
+        self.config["last_action"] = "ddvo_preview"
+        self.config["last_action_detail"] = target.name
+        self._persist_config()
+        if open_file:
+            self.open_export_path(str(target))
+        state = self._state()
+        state["export_paths"] = {"pdf": str(target), "html": str(html_path)}
+        state["msg"] = f"Predogled DDV-O: {target.name}"
+        return state
+
+    def virman_quote(self, konto62: Any = "0") -> dict[str, Any]:
+        view = self._ddvo_view_or_error()
+        summary = core.ddvo_summary(view)
+        quoted = core.ddvo_virman_payment(summary.get("obligation"), konto62)
+        return {
+            "ok": True,
+            "obligation": gui_helpers.format_money(quoted["obligation"]),
+            "excess": gui_helpers.format_money(summary.get("excess")),
+            "konto62_saldo": gui_helpers.format_money(quoted["konto62_saldo"]),
+            "payment": gui_helpers.format_money(quoted["payment"]),
+            "formula": gui_helpers.format_virman_formula(quoted["obligation"], quoted["konto62_saldo"], quoted["payment"]),
+            "needs_virman": quoted["obligation"] > 0,
+            "period_from": view.period_from,
+            "period_to": view.period_to,
+            "company": _company_public(self.selected_company) if self.selected_company else None,
+        }
+
+    def create_virman_package(
+        self,
+        *,
+        konto62: Any = "0",
+        payer_iban: str = "",
+        execution_date: str = "",
+        out_dir: str = "",
+        source_pdf: str = "",
+    ) -> dict[str, Any]:
+        """Ustvari PDF+XML in po potrebi virman. E-pošte ne odpre in je ne pošlje."""
+        import kirkpr_ddvo_virman as ddvo_virman
+
+        view = self._ddvo_view_or_error()
+        if not self.selected_company:
+            raise core.KirkprError("Za virman najprej izberite podjetje.")
+        folder = self._ddvo_initial_dir(out_dir)
+        exported = self.export_ddvo("both", out_dir=str(folder))
+        if exported.get("ok") is False:
+            return exported
+        paths = dict(exported.get("export_paths") or {})
+        pdf_path = Path(source_pdf or paths.get("pdf") or "")
+        quoted = core.ddvo_virman_payment(core.ddvo_summary(view).get("obligation"), konto62)
+        if quoted["obligation"] <= 0:
+            state = self._state()
+            state["export_paths"] = paths
+            state["virman"] = None
+            state["quote"] = self.virman_quote(konto62)
+            state["msg"] = (
+                f"DDV-O PDF in XML sta shranjena. "
+                f"Obveznost (51) je 0 — virman ni potreben."
+            )
+            return state
+        exec_dt = gui_helpers.parse_iso_date(execution_date)
+        paths_obj = None
+        try:
+            paths_obj = registry.company_paths(
+                self.selected_company,
+                str(view.period_from),
+                str(view.period_to),
+                trops_root=registry.resolve_trops_root(str(self.config.get("trops_root") or "") or None),
+            )
+        except ValueError:
+            paths_obj = None
+        if out_dir:
+            virman_dir = folder / "Virmani"
+        else:
+            virman_dir = paths_obj.virmani_root if paths_obj else folder / "Virmani"
+        package = ddvo_virman.write_virman_package(
+            folder,
+            company=self.selected_company,
+            period_from=str(view.period_from),
+            period_to=str(view.period_to),
+            obligation=quoted["obligation"],
+            konto62_credit=quoted["konto62_credit"],
+            payment=quoted["payment"],
+            source_pdf=pdf_path,
+            payer_iban=payer_iban,
+            execution_date=exec_dt,
+            remittance=f"DDV-O {view.period_from} – {view.period_to}",
+            virman_dir=virman_dir,
+        )
+        paths["pdf"] = str(package.pdf_path)
+        paths["virman"] = str(package.virman_path)
+        self._remember_output_dir(
+            folder,
+            "ddvo_pdf",
+            f"{package.pdf_path.name}; virman {package.virman_path.name}; plačilo {package.payment:.2f}",
+        )
+        state = self._state()
+        state["export_paths"] = paths
+        state["virman"] = {
+            "pdf": str(package.pdf_path),
+            "virman": str(package.virman_path),
+            "payment": gui_helpers.format_money(package.payment),
+            "obligation": gui_helpers.format_money(package.obligation),
+            "reference": package.reference,
+            "execution_date": package.execution_date.isoformat() if package.execution_date else "",
+        }
+        state["msg"] = (
+            f"PDF: {package.pdf_path.name}; virman: {package.virman_path.name}; "
+            f"plačilo {gui_helpers.format_money(package.payment)} EUR. E-pošta ni bila odprta."
+        )
+        return state
+
+    def open_export_path(self, path: str) -> dict[str, Any]:
+        target = Path(path)
+        if not target.exists():
+            raise core.KirkprError("Datoteka ali mapa ne obstaja.")
+        gui_helpers.open_in_file_manager(target)
+        return {"ok": True, "path": str(target), "msg": f"Odprto: {target}"}

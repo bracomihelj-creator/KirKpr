@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>KIR/KPR → Minimax Studio 5.0.03</title>
+  <title>KIR/KPR → Minimax Studio 5.0.04</title>
   <link rel="stylesheet" href="/ui/app.css">
 </head>
 <body>
@@ -28,7 +28,7 @@
   <aside class="sidebar" id="sidebar">
     <div class="brand">
       <div class="logo">K</div>
-      <div class="brandText"><b>KirKpr</b><span id="brandVer">5.0.03</span></div>
+      <div class="brandText"><b>KirKpr</b><span id="brandVer">5.0.04</span></div>
     </div>
     <nav class="nav" id="nav">
       <div class="navLbl">Evidence</div>
@@ -117,6 +117,28 @@
     </div>
     <div class="page hidden" data-page="ddvo" id="page-ddvo">
       <div class="card" id="ddvoMeta" style="margin:0 22px 10px"></div>
+      <div class="bookTools" id="ddvoTools" style="margin:0 22px 10px">
+        <button class="btn ghost" type="button" data-ddvo="report">Kontrolni pregled</button>
+        <button class="btn ghost" type="button" data-ddvo="xml">Shrani XML</button>
+        <button class="btn ghost" type="button" data-ddvo="pdf">Shrani PDF</button>
+        <button class="btn" type="button" data-ddvo="both">Izvozi PDF + XML</button>
+        <button class="btn ghost" type="button" id="ddvoPreviewBtn">Predogled PDF</button>
+        <button class="btn ghost" type="button" id="ddvoOpenBtn">Odpri mapo</button>
+      </div>
+      <div class="card" id="virmanBox" style="margin:0 22px 10px">
+        <b>Virman (SEPA)</b>
+        <p class="muted" id="virmanFormula">Obveznost in stanje 62 določita znesek plačila. E-pošta se ne pošilja samodejno.</p>
+        <div class="popRow">
+          <label class="fld">Stanje konta 62<input id="konto62" value="0,00"></label>
+          <label class="fld">Plačilo (izračun)<input id="virmanPayment" readonly></label>
+          <label class="fld">IBAN plačnika<input id="payerIban"></label>
+          <label class="fld">Datum izvršitve<input type="date" id="virmanDate"></label>
+        </div>
+        <div class="popRow" style="margin-top:8px">
+          <button class="btn ghost" type="button" id="virmanQuoteBtn">Preračunaj</button>
+          <button class="btn" type="button" id="virmanCreateBtn">Pripravi PDF + virman</button>
+        </div>
+      </div>
       <div class="tableWrap"><table class="grid" id="tblDdvo"></table></div>
     </div>
     <div class="page hidden" data-page="knjige" id="page-knjige">
@@ -138,7 +160,7 @@
     </div>
     <div class="page hidden" data-page="about" id="page-about">
       <div style="padding:8px 22px 22px;max-width:720px" id="aboutBox">
-        <p><b>KIR/KPR → Minimax Studio 5.0.03</b> — vmesnik WebView2 po zgledu Trops Studio 5.</p>
+        <p><b>KIR/KPR → Minimax Studio 5.0.04</b> — vmesnik WebView2 po zgledu Trops Studio 5.</p>
         <p>Tk vmesnik 4.0.3 ostane v mapi (KirKpr_V4.0.3.pyw), dokler 5.x ne pokrije vseh zaslonov.</p>
         <p>Izračuni DDV, XML in oddaja v Minimax se v tej različici ne spreminjajo.</p>
       </div>

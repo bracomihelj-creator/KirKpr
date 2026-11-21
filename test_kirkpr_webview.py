@@ -63,11 +63,11 @@ class WebviewServiceTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def test_version_is_5_0_03(self) -> None:
-        self.assertEqual("5.0.03", APP_VERSION)
+    def test_version_is_5_0_04(self) -> None:
+        self.assertEqual("5.0.04", APP_VERSION)
         boot = self.svc.boot()
         self.assertTrue(boot["ok"])
-        self.assertEqual("5.0.03", boot["version"])
+        self.assertEqual("5.0.04", boot["version"])
         self.assertFalse(boot["has_data"])
 
     def test_load_source_lists_ir_pr_and_ddvo(self) -> None:
@@ -192,6 +192,35 @@ class WebviewServiceTests(unittest.TestCase):
         if project_before is not None:
             self.assertEqual(project_before, project_cfg.read_bytes())
 
+
+    def test_ddvo_export_xml_report_and_virman_quote_in_temp(self) -> None:
+        project_cfg = Path(r"D:\PISARNA\Python\KirKpr\convert_KIrKpr_to_minimax_config.json")
+        project_before = project_cfg.read_bytes() if project_cfg.is_file() else None
+        out = self.base / "ddvo_out"
+        out.mkdir()
+        self.svc.load_source(str(self.sample))
+        report = self.svc.export_ddvo("report", out_dir=str(out))
+        self.assertTrue(report["ok"])
+        report_path = Path(report["export_paths"]["report"])
+        self.assertTrue(report_path.is_file())
+        self.assertEqual(report_path.parent.resolve(), out.resolve())
+        self.assertIn("DDV-O", report_path.read_text(encoding="utf-8-sig"))
+
+        xml = self.svc.export_ddvo("xml", out_dir=str(out))
+        self.assertTrue(xml["ok"])
+        xml_path = Path(xml["export_paths"]["xml"])
+        self.assertTrue(xml_path.is_file())
+        self.assertTrue(xml_path.name.lower().endswith(".xml"))
+        self.assertIn("DDV", xml_path.read_text(encoding="utf-8"))
+
+        quote = self.svc.virman_quote("0")
+        self.assertTrue(quote["ok"])
+        self.assertIn("needs_virman", quote)
+        self.assertTrue(quote["payment"])
+
+        if project_before is not None:
+            self.assertEqual(project_before, project_cfg.read_bytes())
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -255,7 +284,7 @@ class HostHttpTests(unittest.TestCase):
     def test_boot_and_load_source_via_http(self) -> None:
         code, body = self._open("/api/boot")
         self.assertEqual(200, code)
-        self.assertEqual("5.0.03", body["version"])
+        self.assertEqual("5.0.04", body["version"])
         code, body = self._open("/api/action", {"name": "load_source", "path": str(self.sample), "sync": True})
         self.assertEqual(200, code)
         self.assertTrue(body.get("has_data"))
@@ -295,4 +324,24 @@ class HostHttpTests(unittest.TestCase):
         p8 = next(f for f in applied["editor"]["fields"] if f["name"] == "P8")
         self.assertEqual("210,00", p8["working"])
         self.assertTrue(p8["changed"])
+
+    def test_ddvo_export_via_http_stays_in_temp(self) -> None:
+        out = self.base_dir / "http_ddvo"
+        out.mkdir()
+        code, body = self._open("/api/action", {"name": "load_source", "path": str(self.sample), "sync": True})
+        self.assertEqual(200, code)
+        code, exported = self._open("/api/action", {
+            "name": "export_ddvo",
+            "kind": "xml",
+            "out_dir": str(out),
+            "sync": True,
+        })
+        self.assertEqual(200, code)
+        self.assertTrue(exported.get("ok"))
+        xml_path = Path(exported["export_paths"]["xml"])
+        self.assertTrue(xml_path.is_file())
+        self.assertEqual(xml_path.parent.resolve(), out.resolve())
+        code, quote = self._open("/api/ddvo/quote?konto62=0")
+        self.assertEqual(200, code)
+        self.assertTrue(quote.get("ok"))
 

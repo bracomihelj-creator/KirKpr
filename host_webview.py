@@ -83,6 +83,9 @@ class Bridge:
     def pick_settings_file(self) -> str:
         return self._dialog("OPEN", ("JSON (*.json)", "Vse (*.*)"))
 
+    def pick_save(self, file_types: Any = None) -> str:
+        return self._dialog("SAVE", file_types or ("Vse (*.*)",))
+
     def close_window(self) -> None:
         try:
             import webview
@@ -220,6 +223,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/ddvo":
                 self._json_resp(200, s.ddvo((q.get("q") or [""])[0]))
                 return
+            if path == "/api/ddvo/quote":
+                self._json_resp(200, s.virman_quote((q.get("konto62") or ["0"])[0]))
+                return
             if path == "/api/row":
                 self._json_resp(200, s.get_editor((q.get("id") or [""])[0]))
                 return
@@ -308,6 +314,9 @@ class Handler(BaseHTTPRequestHandler):
 LONG_ACTIONS = {
     "load_source": "Nalaganje KIR/KPR",
     "open_last_source": "Odpiranje zadnje datoteke",
+    "export_ddvo": "Izvoz DDV-O",
+    "preview_ddvo": "Predogled DDV-O",
+    "create_virman_package": "Priprava PDF in virmana",
 }
 
 
@@ -331,6 +340,20 @@ def _actions(s: KirKprService) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
             persist_working=b.get("persist_working", True),
         ),
         "save_working_copy": lambda b: s.save_working_copy_action(str(b.get("path") or b.get("target") or "")),
+        "export_ddvo": lambda b: s.export_ddvo(
+            str(b.get("kind") or "both"),
+            target=str(b.get("path") or b.get("target") or ""),
+            out_dir=str(b.get("out_dir") or ""),
+        ),
+        "preview_ddvo": lambda b: s.preview_ddvo(open_file=bool(b.get("open_file"))),
+        "create_virman_package": lambda b: s.create_virman_package(
+            konto62=b.get("konto62") or "0",
+            payer_iban=str(b.get("payer_iban") or ""),
+            execution_date=str(b.get("execution_date") or ""),
+            out_dir=str(b.get("out_dir") or ""),
+            source_pdf=str(b.get("source_pdf") or ""),
+        ),
+        "open_export_path": lambda b: s.open_export_path(str(b.get("path") or "")),
     }
 
 

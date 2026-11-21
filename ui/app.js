@@ -1,6 +1,6 @@
-/* KirKpr 5.0.03 — vmesnik WebView2 (klici HTTP API / pywebview Bridge). */
+/* KirKpr 5.0.04 — vmesnik WebView2 (klici HTTP API / pywebview Bridge). */
 (function () {
-  var state = { view: "ir", boot: null, companies: [], selected: {}, editor: null, dataEditor: null, dataField: "" };
+  var state = { view: "ir", boot: null, companies: [], selected: {}, editor: null, dataEditor: null, dataField: "", lastExportDir: "", lastExportPath: "" };
   var titles = {
     ir: "Izdani računi",
     pr: "Prejeti računi",
@@ -72,7 +72,7 @@
       return;
     }
     state.boot = s;
-    $("brandVer").textContent = s.version || "5.0.03";
+    $("brandVer").textContent = s.version || "5.0.04";
     var company = s.company;
     $("companyLabel").textContent = company ? ((company.zst ? company.zst + " · " : "") + (company.name || company.key)) : "Ni izbrano";
     $("periodLabel").textContent = s.period_label || (s.period_from ? (s.period_from + " – " + s.period_to) : "—");
@@ -436,6 +436,47 @@
     }).catch(function (e) { toast(e.message, true); });
   }
 
+
+  function rememberExport(s) {
+    var paths = (s && (s.export_paths || s.virman)) || {};
+    var first = paths.pdf || paths.xml || paths.report || paths.virman || (s.virman && (s.virman.pdf || s.virman.virman)) || "";
+    if (first) {
+      state.lastExportPath = first;
+      state.lastExportDir = first.replace(/[\\\/][^\\\/]+$/, "");
+    }
+  }
+
+  function runAction(name, extra, openWhenDone) {
+    $("statusLine").textContent = "Delo v teku…";
+    return act(name, extra || {}).then(function (res) {
+      if (res.job || (res.id && res.state === "running")) return pollJob(res.job || res.id);
+      return res;
+    }).then(function (s) {
+      if (s && s.ok === false) throw new Error(s.msg || s.error || "Naloga ni uspela.");
+      if (s && (s.version || s.has_data !== undefined)) applyState(s);
+      else if (s && s.msg) toast(s.msg);
+      rememberExport(s);
+      if (openWhenDone && state.lastExportPath) {
+        return act("open_export_path", { path: state.lastExportPath }).then(function () { return s; });
+      }
+      return s;
+    });
+  }
+
+  function exportDdvo(kind) {
+    return runAction("export_ddvo", { kind: kind }).then(function () { reloadView(); }).catch(function (e) { toast(e.message, true); });
+  }
+
+  function refreshVirmanQuote() {
+    var k = $("konto62") ? $("konto62").value : "0";
+    return api("/api/ddvo/quote?konto62=" + encodeURIComponent(k)).then(function (data) {
+      if (data.ok === false) throw new Error(data.msg || data.error);
+      if ($("virmanFormula")) $("virmanFormula").textContent = data.formula || data.msg || "";
+      if ($("virmanPayment")) $("virmanPayment").value = data.payment || "";
+      return data;
+    });
+  }
+
   function pollJob(jobId) {
     return api("/api/job?id=" + encodeURIComponent(jobId)).then(function (job) {
       if (job.state === "running") {
@@ -629,6 +670,35 @@
   });
   $("dataModal").addEventListener("click", function (ev) {
     if (ev.target === $("dataModal")) closeDataEditor();
+  });
+
+
+  document.querySelectorAll("#ddvoTools [data-ddvo]").forEach(function (btn) {
+    btn.addEventListener("click", function () { exportDdvo(btn.getAttribute("data-ddvo")); });
+  });
+  $("ddvoPreviewBtn").addEventListener("click", function () {
+    runAction("preview_ddvo", { open_file: true }).catch(function (e) { toast(e.message, true); });
+  });
+  $("ddvoOpenBtn").addEventListener("click", function () {
+    var path = state.lastExportDir || state.lastExportPath;
+    if (!path) { toast("Najprej izvozite DDV-O.", true); return; }
+    act("open_export_path", { path: path }).then(function (s) {
+      if (s && s.ok === false) throw new Error(s.msg || s.error);
+      toast((s && s.msg) || "Mapa je odprta.");
+    }).catch(function (e) { toast(e.message, true); });
+  });
+  $("virmanQuoteBtn").addEventListener("click", function () {
+    refreshVirmanQuote().catch(function (e) { toast(e.message, true); });
+  });
+  $("konto62").addEventListener("change", function () {
+    refreshVirmanQuote().catch(function () {});
+  });
+  $("virmanCreateBtn").addEventListener("click", function () {
+    runAction("create_virman_package", {
+      konto62: $("konto62").value,
+      payer_iban: $("payerIban").value,
+      execution_date: $("virmanDate").value
+    }).then(function () { reloadView(); }).catch(function (e) { toast(e.message, true); });
   });
 
   boot().catch(function (e) { toast(e.message || "Zagon ni uspel.", true); });
