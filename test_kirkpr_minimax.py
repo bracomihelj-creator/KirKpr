@@ -733,7 +733,7 @@ class DdvoFursVirmanXmlTests(unittest.TestCase):
             self.assertEqual(package.virman_path.parent, package.virman_dir)
             self.assertEqual(package.pdf_path.parent, out)
             self.assertEqual(Decimal("950.00"), package.payment)
-            self.assertIn("Virman_DDV", package.virman_path.name)
+            self.assertIn("VIRMAN_DDV-O", package.virman_path.name)
             self.assertIn("DDV-O", package.pdf_path.name)
             self.assertEqual("test@example.com", package.email_to)
 
@@ -1110,7 +1110,8 @@ class DdvoEmailHtmlSpacingTests(unittest.TestCase):
                 encoding="utf-8",
             )
             tpl = email_tpl.get_template(email_tpl.DEFAULT_TEMPLATE_ID, base_dir=Path(tmp))
-            self.assertIn("{nagovor}", tpl["body"])
+            self.assertIn("{odgovorna_oseba}", tpl["body"])
+            self.assertIn("{firma}", tpl["body"])
             self.assertIn("{obdobje}", tpl["subject"])
 
     def test_parse_deferred_send_si(self) -> None:
