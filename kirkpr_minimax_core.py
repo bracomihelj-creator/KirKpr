@@ -12,6 +12,7 @@ import csv
 import io
 import json
 import re
+import shutil
 import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -984,6 +985,46 @@ def config_path(base_dir: Path | None = None) -> Path:
     return (base_dir or Path(__file__).resolve().parent) / DEFAULT_CONFIG_NAME
 
 
+_UNREADABLE_CONFIG_PATHS: set[str] = set()
+
+
+def _resolved_config_key(path: Path) -> str:
+    try:
+        return str(path.expanduser().resolve())
+    except OSError:
+        return str(path)
+
+
+def _backup_unreadable_config(target: Path) -> Path | None:
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup = target.with_name(f"{target.name}.{stamp}.pokvarjeno.bak")
+    try:
+        shutil.copy2(target, backup)
+        return backup
+    except OSError:
+        return None
+
+
+def _warn_unreadable_config(target: Path, exc: BaseException, backup: Path | None) -> None:
+    import kirkpr_logging
+
+    if backup is not None:
+        kirkpr_logging.get_logger().warning(
+            "Nastavitvene datoteke ni mogoče prebrati (%s): %s. "
+            "Varnostna kopija: %s. Datoteke ne prepisujem.",
+            target,
+            exc,
+            backup,
+        )
+    else:
+        kirkpr_logging.get_logger().warning(
+            "Nastavitvene datoteke ni mogoče prebrati (%s): %s. "
+            "Varnostne kopije ni bilo mogoče narediti. Datoteke ne prepisujem.",
+            target,
+            exc,
+        )
+
+
 def load_config(path: Path | None = None) -> dict[str, Any]:
     target = path or config_path()
     config = default_config()
@@ -991,8 +1032,12 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
         return config
     try:
         loaded = json.loads(target.read_text(encoding="utf-8-sig"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, json.JSONDecodeError) as exc:
+        backup = _backup_unreadable_config(target)
+        _UNREADABLE_CONFIG_PATHS.add(_resolved_config_key(target))
+        _warn_unreadable_config(target, exc, backup)
         return config
+    _UNREADABLE_CONFIG_PATHS.discard(_resolved_config_key(target))
     if isinstance(loaded, Mapping):
         for key in config:
             if key in loaded:
@@ -1028,6 +1073,23 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
 
 def save_config(config: Mapping[str, Any], path: Path | None = None) -> Path:
     target = path or config_path()
+    key = _resolved_config_key(target)
+    if key in _UNREADABLE_CONFIG_PATHS:
+        import kirkpr_logging
+
+        kirkpr_logging.get_logger().warning(
+            "Nastavitev ne shranjujem, ker datoteka ni berljiva: %s",
+            target,
+        )
+        raise OSError(f"Nastavitev ne shranjujem, ker datoteka ni berljiva: {target}")
+    if target.is_file():
+        try:
+            json.loads(target.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError) as exc:
+            backup = _backup_unreadable_config(target)
+            _UNREADABLE_CONFIG_PATHS.add(key)
+            _warn_unreadable_config(target, exc, backup)
+            raise OSError(f"Nastavitev ne shranjujem, ker datoteka ni berljiva: {target}") from exc
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_suffix(target.suffix + ".tmp")
     temporary.write_text(json.dumps(dict(config), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

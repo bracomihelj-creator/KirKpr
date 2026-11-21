@@ -612,7 +612,6 @@ def journal_as_book_row(journal: Mapping[str, Any], book: str) -> dict[str, Any]
     invoice = str((vat_entry or {}).get("Document") or "").strip() or _invoice_from_description(
         str(journal.get("Description") or ""), book
     )
-    party = _party_name((vat_entry or {}).get("Customer"))
     jid = journal.get("JournalId") or journal.get("ID")
     amount = totals["base"] + totals["vat"]
     return {

@@ -16,7 +16,7 @@ import tempfile
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 import kirkpr_ddvo_xml as ddvo_xml
 import kirkpr_minimax_core as core

@@ -6,7 +6,7 @@ import json
 import re
 import tkinter as tk
 from pathlib import Path
-from tkinter import messagebox, ttk
+from tkinter import messagebox
 from typing import Any, Callable, Mapping
 
 import kirkpr_minimax_core as core

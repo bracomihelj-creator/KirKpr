@@ -1,4 +1,4 @@
-# KIR/KPR → Minimax Studio — Cursor izdaja (v4.0.2)
+# KIR/KPR → Minimax Studio — Cursor izdaja (v4.0.3)
 
 Program je v mapi `D:\PISARNA\Python\KirKpr` (prej KirKpr_convert_cursor).
 

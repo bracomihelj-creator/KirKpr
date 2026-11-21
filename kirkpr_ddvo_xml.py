@@ -90,13 +90,13 @@ def period_label(period_from: str, period_to: str) -> str:
         d1 = int(start[8:10])
     except ValueError:
         return f"{start}_{end}".strip("_") or "obdobje"
-    m2 = d2 = None
+    m2 = None
     if len(end) >= 10 and end[4] == "-" and end[7] == "-":
         try:
             m2 = int(end[5:7])
-            d2 = int(end[8:10])
+            int(end[8:10])
         except ValueError:
-            m2 = d2 = None
+            m2 = None
     if m2 is None:
         return f"{year}-Q{(m1 - 1) // 3 + 1}"
 

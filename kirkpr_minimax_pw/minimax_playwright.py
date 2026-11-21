@@ -28,7 +28,6 @@ from kirkpr_minimax_pw.minimax_cdp import (
     _js_click_by_label,
     _js_click_shrani_customer,
     _js_click_uredi,
-    _js_enable_direct_transfer_checkboxes,
     _js_enable_recv_from_customer_checkbox,
     _js_enable_send_to_customer_checkbox,
     _js_expense_state,
@@ -2208,7 +2207,6 @@ def open_client_quick_recv_batch(
     from playwright.sync_api import sync_playwright
 
     profile = str(playwright_profile_dir())
-    launch_args = _launch_args(headless=headless)
     total = len(items)
     try:
         with _PW_LOCK:
