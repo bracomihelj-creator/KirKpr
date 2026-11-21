@@ -210,6 +210,15 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/boot":
                 self._json_resp(200, s.boot())
                 return
+            if path == "/api/sessions":
+                self._json_resp(200, s.list_sessions())
+                return
+            if path == "/api/help":
+                self._json_resp(200, s.help_topic((q.get("topic") or ["about"])[0]))
+                return
+            if path == "/api/log":
+                self._json_resp(200, s.log_path())
+                return
             if path == "/api/companies":
                 search = (q.get("q") or [""])[0]
                 self._json_resp(200, s.list_companies(search))
@@ -329,6 +338,8 @@ LONG_ACTIONS = {
     "preview_ddvo": "Predogled DDV-O",
     "create_virman_package": "Priprava PDF in virmana",
     "refresh_knjige_from_api": "Branje knjig iz Minimax API",
+    "open_session": "Odpiranje seje",
+    "save_accounts": "Shranjevanje kontov",
 }
 
 
@@ -368,6 +379,13 @@ def _actions(s: KirKprService) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
         "open_export_path": lambda b: s.open_export_path(str(b.get("path") or "")),
         "set_knjiga_mode": lambda b: s.set_knjiga_mode(str(b.get("mode") or "json")),
         "refresh_knjige_from_api": lambda b: s.refresh_knjige_from_api(),
+        "save_session": lambda b: s.save_session(str(b.get("title") or ""), str(b.get("notes") or "")),
+        "open_session": lambda b: s.open_session(int(b.get("id") or 0)),
+        "update_session": lambda b: s.update_session(int(b.get("id") or 0), str(b.get("title") or ""), str(b.get("notes") or "")),
+        "delete_session": lambda b: s.delete_session(int(b.get("id") or 0)),
+        "set_auto_reopen": lambda b: s.set_auto_reopen(bool(b.get("enabled"))),
+        "set_theme": lambda b: s.set_theme(str(b.get("theme") or "light")),
+        "save_accounts": lambda b: s.save_accounts(),
     }
 
 

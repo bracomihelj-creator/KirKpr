@@ -350,3 +350,17 @@ details.savedMaps{margin-top:12px}details.savedMaps summary{cursor:pointer;font-
 .matchLocal td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
 .totalsRow td{font-weight:700;background:var(--surface-3)}
 #knjigaTotals{margin:0 22px 10px}
+
+.menubar{display:flex;gap:2px;background:var(--surface);border-bottom:1px solid var(--line);padding:0 8px;position:relative;z-index:40}
+.menu{position:relative}
+.menuBtn{border:0;background:transparent;color:var(--text);height:28px;padding:0 10px;font:inherit;cursor:pointer;border-radius:6px}
+.menuBtn:hover,.menu.open .menuBtn{background:var(--accent-soft)}
+.menuList{position:absolute;top:28px;left:0;min-width:280px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow-lg);padding:6px;display:flex;flex-direction:column;z-index:50}
+.menuList button,.menuChk{display:block;width:100%;text-align:left;border:0;background:transparent;color:var(--text);padding:7px 10px;border-radius:6px;font:inherit;cursor:pointer}
+.menuList button:hover{background:var(--accent-soft)}
+.menuList hr{border:0;border-top:1px solid var(--line);margin:4px 0}
+.menuChk{display:flex;align-items:center;gap:8px;cursor:pointer}
+#sessionSelect{height:34px;max-width:220px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);padding:0 8px}
+.helpBody{white-space:pre-wrap;font-family:var(--font-sans);font-size:13.5px;margin:0;color:var(--text)}
+body{display:flex;flex-direction:column;min-height:100vh}
+.shell{flex:1;min-height:0}

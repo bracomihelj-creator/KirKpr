@@ -1,4 +1,4 @@
-/* KirKpr 5.0.05 — vmesnik WebView2 (klici HTTP API / pywebview Bridge). */
+/* KirKpr 5.0.06 — vmesnik WebView2 (klici HTTP API / pywebview Bridge). */
 (function () {
   var state = { view: "ir", boot: null, companies: [], selected: {}, editor: null, dataEditor: null, dataField: "", lastExportDir: "", lastExportPath: "", knjigaBook: "IR", knjigaMode: "json" };
   var titles = {
@@ -72,7 +72,10 @@
       return;
     }
     state.boot = s;
-    $("brandVer").textContent = s.version || "5.0.05";
+    $("brandVer").textContent = s.version || "5.0.06";
+    if (s.theme) document.documentElement.setAttribute("data-theme", s.theme);
+    if ($("autoReopenChk")) $("autoReopenChk").checked = !!s.auto_reopen;
+    if (s.sessions) renderSessions(s.sessions, s.selected_session_id);
     var company = s.company;
     $("companyLabel").textContent = company ? ((company.zst ? company.zst + " · " : "") + (company.name || company.key)) : "Ni izbrano";
     $("periodLabel").textContent = s.period_label || (s.period_from ? (s.period_from + " – " + s.period_to) : "—");
@@ -101,6 +104,48 @@
         "<p>Tk vmesnik 4.0.3 ostane v mapi (KirKpr_V4.0.3.pyw), dokler 5.x ne pokrije vseh zaslonov.</p>" +
         "<p>Izračuni DDV, XML in oddaja v Minimax se v tej različici ne spreminjajo.</p>";
     }
+  }
+
+
+  function renderSessions(rows, selectedId) {
+    var sel = $("sessionSelect");
+    if (!sel) return;
+    var current = selectedId || sel.value;
+    sel.innerHTML = "";
+    var empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = rows && rows.length ? "Izberi sejo…" : "Ni shranjene seje";
+    sel.appendChild(empty);
+    (rows || []).forEach(function (row) {
+      var opt = document.createElement("option");
+      opt.value = String(row.id);
+      opt.textContent = row.label || row.title || ("Seja " + row.id);
+      if (String(row.id) === String(current)) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    var label = $("sessionLabel");
+    var chosen = (rows || []).find(function (r) { return String(r.id) === String(sel.value); });
+    if (label) label.textContent = chosen ? (chosen.label || chosen.title) : (rows && rows.length ? "Izberi sejo" : "Ni shranjene seje");
+  }
+
+  function loadSessions() {
+    return api("/api/sessions").then(function (data) {
+      renderSessions(data.rows || [], data.selected_id);
+      return data;
+    });
+  }
+
+  function closeMenus() {
+    document.querySelectorAll(".menu").forEach(function (m) { m.classList.remove("open"); });
+    document.querySelectorAll(".menuList").forEach(function (m) { m.classList.add("hidden"); });
+  }
+
+  function showHelp(topic) {
+    return api("/api/help?topic=" + encodeURIComponent(topic)).then(function (data) {
+      $("helpTitle").textContent = data.title || "Pomoč";
+      $("helpBody").textContent = data.body || "";
+      $("helpModal").classList.remove("hidden");
+    }).catch(function (e) { toast(e.message, true); });
   }
 
   function renderCompanies(rows) {
@@ -573,7 +618,7 @@
     return api("/api/boot").then(function (s) {
       applyState(s);
       renderCompanies(s.companies || []);
-      return reloadView();
+      return loadSessions().then(function () { return reloadView(); });
     });
   }
 
@@ -700,8 +745,10 @@
   $("themeBtn").addEventListener("click", function () {
     var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
     document.documentElement.setAttribute("data-theme", next);
+    act("set_theme", { theme: next }).catch(function () {});
   });
   document.addEventListener("click", function (ev) {
+    if (!ev.target.closest(".menu")) closeMenus();
     if (!ev.target.closest("#companyPicker") && !ev.target.closest("#companyPop")) {
       $("companyPop").classList.add("hidden");
     }
@@ -787,6 +834,100 @@
       state.knjigaMode = "api";
       if (s) applyState(s);
       reloadView();
+    }).catch(function (e) { toast(e.message, true); });
+  });
+
+
+  document.querySelectorAll(".menuBtn").forEach(function (btn) {
+    btn.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      var menu = btn.parentElement;
+      var open = menu.classList.contains("open");
+      closeMenus();
+      if (!open) {
+        menu.classList.add("open");
+        var list = menu.querySelector(".menuList");
+        if (list) list.classList.remove("hidden");
+      }
+    });
+  });
+  document.querySelectorAll("[data-file]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      closeMenus();
+      var name = btn.getAttribute("data-file");
+      if (name === "open") pickFile().then(openSource);
+      else if (name === "last") runAction("open_last_source", {}).then(function (s) { if (s) { applyState(s); reloadView(); } }).catch(function (e) { toast(e.message, true); });
+      else if (name === "save-accounts") runAction("save_accounts", {}).then(function (s) { if (s) applyState(s); }).catch(function (e) { toast(e.message, true); });
+      else if (name === "save-working") act("save_working_copy").then(function (s) { if (s.ok === false) throw new Error(s.msg || s.error); applyState(s); }).catch(function (e) { toast(e.message, true); });
+      else if (name === "knjige") setView("knjige");
+      else if (name === "api") setView("api");
+      else if (name === "settings") setView("settings");
+      else if (name === "email") setView("about");
+      else if (name === "export-dir") {
+        var path = state.lastExportDir || (state.boot && state.boot.paths && state.boot.paths.last_source) || "";
+        if (!path) { toast("Ni shranjene izhodne mape.", true); return; }
+        act("open_export_path", { path: path }).catch(function (e) { toast(e.message, true); });
+      }
+      else if (name === "log") {
+        api("/api/log").then(function (data) {
+          if (!data.path) throw new Error("Dnevnik ni na voljo.");
+          return act("open_export_path", { path: data.path });
+        }).catch(function (e) { toast(e.message, true); });
+      }
+      else if (name === "exit") {
+        var b = bridge();
+        if (b && b.close_window) b.close_window();
+        else window.close();
+      }
+    });
+  });
+  $("autoReopenChk").addEventListener("change", function () {
+    act("set_auto_reopen", { enabled: $("autoReopenChk").checked }).then(function (s) { applyState(s); }).catch(function (e) { toast(e.message, true); });
+  });
+  document.querySelectorAll("[data-theme]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      closeMenus();
+      var theme = btn.getAttribute("data-theme") || "light";
+      document.documentElement.setAttribute("data-theme", theme);
+      act("set_theme", { theme: theme }).then(function (s) { if (s) applyState(s); }).catch(function (e) { toast(e.message, true); });
+    });
+  });
+  document.querySelectorAll("[data-help]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      closeMenus();
+      showHelp(btn.getAttribute("data-help") || "about");
+    });
+  });
+  $("helpClose").addEventListener("click", function () { $("helpModal").classList.add("hidden"); });
+  $("helpOk").addEventListener("click", function () { $("helpModal").classList.add("hidden"); });
+  $("helpModal").addEventListener("click", function (ev) { if (ev.target === $("helpModal")) $("helpModal").classList.add("hidden"); });
+  $("sessionOpenBtn").addEventListener("click", function () {
+    var id = $("sessionSelect").value;
+    if (!id) { toast("Ni izbrane seje.", true); return; }
+    runAction("open_session", { id: Number(id) }).then(function (s) {
+      if (s) applyState(s);
+      loadSessions();
+      reloadView();
+    }).catch(function (e) { toast(e.message, true); });
+  });
+  $("sessionSaveBtn").addEventListener("click", function () {
+    var title = window.prompt("Ime seje (predlagano — lahko spremeniš ali pustiš):", $("sessionLabel").textContent || "");
+    if (title === null) return;
+    act("save_session", { title: title }).then(function (s) {
+      if (s.ok === false) throw new Error(s.msg || s.error);
+      applyState(s);
+      loadSessions();
+    }).catch(function (e) { toast(e.message, true); });
+  });
+  $("sessionDeleteBtn").addEventListener("click", function () {
+    var id = $("sessionSelect").value;
+    if (!id) { toast("Ni izbrane seje.", true); return; }
+    var label = $("sessionSelect").selectedOptions[0] ? $("sessionSelect").selectedOptions[0].textContent : id;
+    if (!window.confirm("Res zbrišem sejo\\n\\n" + label + "\\n\\nDatoteka s podatki ostane, zbriše se samo zapis seje.")) return;
+    act("delete_session", { id: Number(id) }).then(function (s) {
+      if (s.ok === false) throw new Error(s.msg || s.error);
+      applyState(s);
+      loadSessions();
     }).catch(function (e) { toast(e.message, true); });
   });
 

@@ -63,11 +63,11 @@ class WebviewServiceTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def test_version_is_5_0_05(self) -> None:
-        self.assertEqual("5.0.05", APP_VERSION)
+    def test_version_is_5_0_06(self) -> None:
+        self.assertEqual("5.0.06", APP_VERSION)
         boot = self.svc.boot()
         self.assertTrue(boot["ok"])
-        self.assertEqual("5.0.05", boot["version"])
+        self.assertEqual("5.0.06", boot["version"])
         self.assertFalse(boot["has_data"])
 
     def test_load_source_lists_ir_pr_and_ddvo(self) -> None:
@@ -263,6 +263,37 @@ class WebviewServiceTests(unittest.TestCase):
         if project_before is not None:
             self.assertEqual(project_before, project_cfg.read_bytes())
 
+
+    def test_sessions_and_help_use_temp_db_only(self) -> None:
+        project_cfg = Path(r"D:\PISARNA\Python\KirKpr\convert_KIrKpr_to_minimax_config.json")
+        project_sess = Path(r"D:\PISARNA\Python\KirKpr\kirkpr_sessions.sqlite3")
+        cfg_before = project_cfg.read_bytes() if project_cfg.is_file() else None
+        sess_before = project_sess.read_bytes() if project_sess.is_file() else None
+        company = {"Zšt": "99", "Kratko ime": "Test d.o.o.", "DAVČNA": "12345678"}
+        self.svc.companies = [company]
+        self.svc.selected_company = company
+        self.svc.load_source(str(self.sample))
+        saved = self.svc.save_session("Test seja april")
+        self.assertTrue(saved["ok"])
+        rows = self.svc.list_sessions()["rows"]
+        self.assertEqual(1, len(rows))
+        self.assertIn("Test seja april", rows[0]["title"] or rows[0]["label"])
+        self.assertTrue(str(self.svc.sessions_db.path).startswith(str(self.base)))
+        opened = self.svc.open_session(int(rows[0]["id"]))
+        self.assertTrue(opened["ok"])
+        self.assertTrue(opened["has_data"])
+        deleted = self.svc.delete_session(int(rows[0]["id"]))
+        self.assertTrue(deleted["ok"])
+        self.assertEqual(0, len(self.svc.list_sessions()["rows"]))
+        help_page = self.svc.help_topic("formats")
+        self.assertIn("FURS", help_page["body"])
+        if cfg_before is not None:
+            self.assertEqual(cfg_before, project_cfg.read_bytes())
+        if sess_before is not None:
+            self.assertEqual(sess_before, project_sess.read_bytes())
+        else:
+            self.assertFalse(project_sess.exists())
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -326,7 +357,7 @@ class HostHttpTests(unittest.TestCase):
     def test_boot_and_load_source_via_http(self) -> None:
         code, body = self._open("/api/boot")
         self.assertEqual(200, code)
-        self.assertEqual("5.0.05", body["version"])
+        self.assertEqual("5.0.06", body["version"])
         code, body = self._open("/api/action", {"name": "load_source", "path": str(self.sample), "sync": True})
         self.assertEqual(200, code)
         self.assertTrue(body.get("has_data"))
@@ -394,4 +425,13 @@ class HostHttpTests(unittest.TestCase):
         self.assertEqual(200, code)
         self.assertEqual(1, data["visible"])
         self.assertEqual("IR-1", data["rows"][0]["p3"])
+
+    def test_sessions_and_help_via_http(self) -> None:
+        code, body = self._open("/api/help?topic=about")
+        self.assertEqual(200, code)
+        self.assertIn("4190", body["body"])
+        code, sessions = self._open("/api/sessions")
+        self.assertEqual(200, code)
+        self.assertTrue(sessions.get("ok"))
+        self.assertIn("rows", sessions)
 

@@ -7,6 +7,7 @@ Samo kliče kirkpr_minimax_core, register podjetij in pomožne funkcije obdobja.
 from __future__ import annotations
 
 import copy
+import json
 import re
 import tempfile
 from datetime import date
@@ -15,11 +16,12 @@ from pathlib import Path
 from typing import Any, Mapping
 
 import kirkpr_company_registry as registry
+import kirkpr_sessions_db as sessions_db
 import minimax_api_client as minimax_api
 import kirkpr_minimax_core as core
 import convert_KIrKpr_to_minimax as gui_helpers
 
-APP_VERSION = "5.0.05"
+APP_VERSION = "5.0.06"
 APP_TITLE = "KIR/KPR \u2192 Minimax Studio"
 APP_EDITION = "WebView2"
 
@@ -64,7 +66,7 @@ def _company_public(record: Mapping[str, Any]) -> dict[str, Any]:
 class KirKprService:
     """Stanje seje za namizni vmesnik 5.0.01 (brez Tk)."""
 
-    def __init__(self, *, config_path: Path | None = None, base_dir: Path | None = None) -> None:
+    def __init__(self, *, config_path: Path | None = None, base_dir: Path | None = None, sessions_db_path: Path | None = None) -> None:
         self.base_dir = (base_dir or Path(__file__).resolve().parent).resolve()
         self.config_path = Path(config_path) if config_path else core.config_path(self.base_dir)
         self.config = core.load_config(self.config_path)
@@ -88,6 +90,9 @@ class KirKprService:
         self.knjiga_records: dict[str, list[dict[str, Any]]] = {"IR": [], "PR": []}
         self.knjiga_period: tuple[str, str] | None = None
         self.minimax_client = None
+        self._selected_session_id: int | None = None
+        db_path = Path(sessions_db_path) if sessions_db_path else sessions_db.default_db_path(self.base_dir)
+        self.sessions_db = sessions_db.SessionsDb(db_path)
         self._reload_companies()
         self._restore_selected_company()
 
@@ -197,6 +202,9 @@ class KirKprService:
             "period_label": self.period_label,
             "has_data": self.dataset is not None,
             "working_dirty": self.working_dirty,
+            "auto_reopen": bool(self.config.get("auto_reopen_last_source")),
+            "theme": str(self.config.get("ui_theme") or "light"),
+            "selected_session_id": self._selected_session_id,
             "summary": summary,
             "paths": {
                 "config": str(self.config_path),
@@ -1465,3 +1473,289 @@ class KirKprService:
         state["knjiga_mode"] = "api"
         state["msg"] = f"Knjige API: IR {ir_n}, PR {pr_n}."
         return state
+
+
+    def list_sessions(self, limit: int = 50) -> dict[str, Any]:
+        rows = []
+        for entry in self.sessions_db.list_sessions(limit=limit):
+            rows.append({
+                "id": entry.get("id"),
+                "title": entry.get("title") or entry.get("label") or "",
+                "label": entry.get("label") or entry.get("title") or "",
+                "company_key": entry.get("company_key") or "",
+                "company_label": entry.get("company_label") or "",
+                "period_from": str(entry.get("period_from") or "")[:10],
+                "period_to": str(entry.get("period_to") or "")[:10],
+                "source": str(entry.get("source_path") or entry.get("source") or ""),
+                "working_copy": str(entry.get("working_copy") or ""),
+                "notes": entry.get("notes") or "",
+                "updated_at": str(entry.get("updated_at") or ""),
+                "minimax": self._session_is_minimax(entry),
+            })
+        return {"ok": True, "rows": rows, "selected_id": self._selected_session_id, "db": str(self.sessions_db.path)}
+
+    @staticmethod
+    def _session_is_minimax(entry: Mapping[str, Any]) -> bool:
+        text = " ".join(
+            str(entry.get(key) or "")
+            for key in ("title", "label", "source", "source_path", "working_copy")
+        ).casefold()
+        return "minimax" in text or ".virtual" in text
+
+    def _session_period_bounds(self, entry: Mapping[str, Any]) -> tuple[date, date] | None:
+        start = gui_helpers.parse_iso_date(entry.get("period_from"))
+        end = gui_helpers.parse_iso_date(entry.get("period_to"))
+        if start and end:
+            if end < start:
+                start, end = end, start
+            return start, end
+        return None
+
+    def _session_file_usable(self, path: Path | None, prefer: tuple[date, date] | None) -> tuple[bool, str]:
+        if path is None or not path.is_file():
+            return False, "ni shranjene datoteke"
+        text = str(path).replace("\\", "/")
+        if prefer is not None:
+            start, end = prefer
+            start_s, end_s = start.isoformat(), end.isoformat()
+            ym = f"{start.year}-{start.month:02d}"
+            periods_in_path = re.findall(r"20\d{2}-\d{2}-\d{2}", text)
+            if periods_in_path and start_s not in text and end_s not in text and ym not in text:
+                return False, f"datoteka je za drugo obdobje ({periods_in_path[0]}…), seja je {start_s}–{end_s}"
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return True, path.name
+        if isinstance(raw, Mapping):
+            payload = raw.get("DDV_KIR_KPR") if isinstance(raw.get("DDV_KIR_KPR"), Mapping) else raw
+            if isinstance(payload, Mapping):
+                kir = payload.get("Lista_KIR") or {}
+                kpr = payload.get("Lista_KPR") or {}
+                kir_rows = kir.get("KIR", []) if isinstance(kir, Mapping) else kir
+                kpr_rows = kpr.get("KPR", []) if isinstance(kpr, Mapping) else kpr
+                n_kir = len(kir_rows or []) if isinstance(kir_rows, list) else 0
+                n_kpr = len(kpr_rows or []) if isinstance(kpr_rows, list) else 0
+                if n_kir == 0 and n_kpr == 0 and ("MINIMAX_DELOVNA_KOPIJA" in raw or "DDV_KIR_KPR" in raw):
+                    return False, "delovna kopija je prazna (0 IR/PR)"
+        return True, path.name
+
+    def _apply_session_company_and_period(self, entry: Mapping[str, Any]) -> bool:
+        company_key = str(entry.get("company_key") or "")
+        company = registry.find_company(self.companies, company_key) if company_key else None
+        if company:
+            self.selected_company = company
+        prefer = self._session_period_bounds(entry)
+        if prefer is None:
+            return False
+        self.set_period(prefer[0].isoformat(), prefer[1].isoformat())
+        return True
+
+    def _remember_current_session(self, *, title: str = "", notes: str = "", use_selected_id: bool = False) -> dict[str, Any] | None:
+        if not self.selected_company or not self.dataset:
+            return None
+        key = registry.company_key(self.selected_company)
+        zst = registry.company_zst(self.selected_company) or "—"
+        name = registry.company_name(self.selected_company)
+        period_from = self.period_from.isoformat() if self.period_from else (self.dataset.period_from or "")
+        period_to = self.period_to.isoformat() if self.period_to else (self.dataset.period_to or "")
+        wc = str(self._profile_config().get("last_working_copy") or "") or None
+        core.remember_recent_session(
+            self.config,
+            company_key=key,
+            company_label=f"{zst} {name}",
+            source=self.dataset.source_path,
+            working_copy=wc,
+            period_from=period_from,
+            period_to=period_to,
+        )
+        sid = self._selected_session_id if use_selected_id else None
+        entry = self.sessions_db.upsert(
+            company_key=key,
+            company_label=f"{zst} {name}",
+            source=self.dataset.source_path,
+            working_copy=wc,
+            period_from=period_from,
+            period_to=period_to,
+            title=title,
+            notes=notes,
+            session_id=sid,
+        )
+        if entry and entry.get("id"):
+            self._selected_session_id = int(entry["id"])
+        return entry
+
+    def save_session(self, title: str = "", notes: str = "") -> dict[str, Any]:
+        if self.dataset is None:
+            raise core.KirkprError("Najprej odpri KIR/KPR podatke.")
+        if not self.selected_company:
+            raise core.KirkprError("Za shranjevanje seje izberi podjetje.")
+        if self.working_dirty:
+            self.save_working_copy(quiet=True)
+        current = self.sessions_db.get(self._selected_session_id) if self._selected_session_id else None
+        active_key = registry.company_key(self.selected_company)
+        use_selected = bool(current and str(current.get("company_key") or "") == active_key)
+        if not use_selected:
+            self._selected_session_id = None
+        default_title = title.strip()
+        if not default_title:
+            zst = registry.company_zst(self.selected_company) or "—"
+            name = registry.company_name(self.selected_company)
+            default_title = core.format_recent_session_label(
+                {
+                    "company_label": f"{zst} {name}",
+                    "period_from": self.period_from.isoformat() if self.period_from else "",
+                    "period_to": self.period_to.isoformat() if self.period_to else "",
+                    "source": str(self.dataset.source_path),
+                    "working_copy": str(self._profile_config().get("last_working_copy") or ""),
+                }
+            )
+        entry = self._remember_current_session(title=default_title, notes=notes, use_selected_id=use_selected)
+        self._persist_config()
+        state = self._state()
+        state["sessions"] = self.list_sessions()["rows"]
+        if entry:
+            state["msg"] = f"Seja shranjena: {entry.get('label') or default_title}"
+        else:
+            state["ok"] = False
+            state["error"] = state["msg"] = "Seje ni bilo mogoče shraniti."
+        return state
+
+    def open_session(self, session_id: int) -> dict[str, Any]:
+        entry = self.sessions_db.get(int(session_id))
+        if not entry:
+            raise core.KirkprError("Ni izbrane seje.")
+        self._selected_session_id = int(entry.get("id") or 0) or None
+        applied = self._apply_session_company_and_period(entry)
+        if self._session_is_minimax(entry):
+            state = self._state()
+            state["needs_minimax"] = True
+            state["msg"] = "To je Minimax seja. Za svež prenos uporabi Minimax API; shranjena datoteka se ni samodejno naložila."
+            return state
+        path = self.sessions_db.open_path(entry)
+        prefer = self._session_period_bounds(entry)
+        usable, reason = self._session_file_usable(path, prefer)
+        if usable and path is not None:
+            loaded = self.load_source(str(path))
+            loaded["msg"] = f"Odprta seja: {entry.get('label') or entry.get('title') or path.name}"
+            loaded["sessions"] = self.list_sessions()["rows"]
+            return loaded
+        if not applied and path is None:
+            raise core.KirkprError("Datoteka za to sejo ne obstaja več (premik/brisanje). Lahko jo zbrišeš s seznama.")
+        state = self._state()
+        state["msg"] = (
+            "Seja: firma in obdobje sta nastavljena, datoteka pa ni na voljo"
+            + (f" ({reason})." if reason else ".")
+        )
+        return state
+
+    def update_session(self, session_id: int, title: str = "", notes: str = "") -> dict[str, Any]:
+        entry = self.sessions_db.update_meta(int(session_id), title=title, notes=notes)
+        if not entry:
+            raise core.KirkprError("Seje ni mogoče posodobiti.")
+        state = self._state()
+        state["sessions"] = self.list_sessions()["rows"]
+        state["msg"] = f"Seja posodobljena: {entry.get('title') or entry.get('label')}"
+        return state
+
+    def delete_session(self, session_id: int) -> dict[str, Any]:
+        entry = self.sessions_db.get(int(session_id))
+        if not entry:
+            raise core.KirkprError("Seje ni na seznamu.")
+        label = entry.get("label") or entry.get("title") or str(session_id)
+        deleted = self.sessions_db.delete(int(session_id))
+        if self._selected_session_id == int(session_id):
+            self._selected_session_id = None
+        if not deleted:
+            raise core.KirkprError(f"Seje ni bilo mogoče izbrisati (id={session_id}).")
+        state = self._state()
+        state["sessions"] = self.list_sessions()["rows"]
+        state["msg"] = f"Seja odstranjena: {label}"
+        return state
+
+    def set_auto_reopen(self, enabled: bool) -> dict[str, Any]:
+        self.config["auto_reopen_last_source"] = bool(enabled)
+        self._persist_config()
+        state = self._state()
+        state["msg"] = "Samodejno odpiranje zadnje datoteke je " + ("vključeno." if enabled else "izključeno.")
+        return state
+
+    def set_theme(self, theme: str = "light") -> dict[str, Any]:
+        value = "dark" if str(theme or "").strip().lower() == "dark" else "light"
+        self.config["ui_theme"] = value
+        self._persist_config()
+        state = self._state()
+        state["msg"] = "Videz: " + ("temna" if value == "dark" else "svetla") + " tema."
+        return state
+
+    def save_accounts(self) -> dict[str, Any]:
+        if self.dataset is None:
+            raise core.KirkprError("Najprej odprite KIR/KPR datoteko.")
+        profile = self._profile_config()
+        for row in self.dataset.kir:
+            core.remember_account(profile, "IR", row, str(row.get("__konto__") or "7601"), supplier_rule=False)
+            core.remember_description(profile, "IR", row, str(row.get("__opis__") or row.get("P3") or ""))
+        for row in self.dataset.kpr:
+            core.remember_account(profile, "PR", row, str(row.get("__konto__") or "4190"), supplier_rule=False)
+            core.remember_description(profile, "PR", row, str(row.get("__opis__") or row.get("P3") or ""))
+            core.remember_self_assessment(profile, row, core.is_self_assessment(row))
+            core.remember_vat_deductible(profile, row, core.vat_is_deductible(row))
+        self._persist_config()
+        saved = self.save_working_copy(quiet=True)
+        state = self._state()
+        if saved:
+            state["working_copy"] = str(saved)
+        state["msg"] = "Konta, pravila in delovna kopija so shranjeni. Izvorna datoteka ni bila spremenjena."
+        return state
+
+    def help_topic(self, topic: str = "about") -> dict[str, Any]:
+        name = str(topic or "about").strip().lower()
+        import kirkpr_logging
+        if name in {"formats", "format", "formati"}:
+            title = "Podprti formati / pravila ZIP"
+            body = (
+                "Vhod (pridobivanje):\n\n"
+                "• FURS DDV_KIR_KPR v JSON ali XML\n"
+                "• CSV z glavo P2, P3 … in oznako KIR/KPR\n"
+                "• ZIP z JSON / XML / CSV znotraj (skupaj ali ločeno KIR + KPR)\n"
+                "• Minimax API — gumb »Podatki iz Minimaxa« (firma + obdobje)\n\n"
+                "Pravila branja ZIP:\n"
+                "1. Prebere vse člane .json, .xml, .csv\n"
+                "2. Prednostni format (JSON/XML/CSV), če obstaja v ZIP-u\n"
+                "3. Sicer najpopolnejši vir (več vrstic, obe knjigi; JSON > XML > CSV)\n"
+                "4. Manjkajoči KIR ali KPR dopolni iz drugega člana\n"
+                "5. Ugnezdeni ZIP: 1 nivo, če zunanji nima uporabnih podatkov\n\n"
+                "Prenos v Minimax:\n"
+                "• Minimax API — neposredna oddaja IR/PR\n"
+                "• Datoteka XML za uvoz — Minimax XML (IR+PR) + ZIP\n\n"
+                "Pri CSV: ločilo ;/,/tab/|, UTF-8 ali Windows-1250, zneski 1.234,56."
+            )
+        elif name in {"changelog", "novosti"}:
+            title = "Kaj je novega"
+            body = (
+                f"{APP_TITLE} v{APP_VERSION}\n\n"
+                "• Samostojni program v mapi D:\\PISARNA\\Python\\KirKpr\n"
+                "• Vmesnik WebView2 po zgledu Trops Studio 5\n"
+                "• Strukturiran dnevnik KIRKPR_studio.log\n"
+                "• Meni: Nastavitve poti (EvidencaFirm, TROPS, Minimax settings)\n"
+                "• Gumb »Ponovi NAPAKA« za ponovno oddajo neuspešnih vrstic\n"
+                "• JSON povzetek vsake API oddaje v mapi API_oddaje\n"
+                "• CLI: --validate, --dry-run, --summary-json\n"
+                "• JSON pogled / Minimax pogled + razlika program ↔ Minimax\n"
+                "• Filter obdobja za JSON in Minimax"
+            )
+        else:
+            title = "O programu"
+            body = (
+                f"{APP_TITLE} v{APP_VERSION}\n"
+                f"Izdaja: {APP_EDITION}\n\n"
+                "Pretvornik za izdane in prejete račune z urejanjem PR kontov, "
+                "dvostavno bilančno kontrolo in Minimax XSD-validacijo.\n\n"
+                "Privzeti konto storitev PR: 4190\n"
+                f"Dnevnik: {kirkpr_logging.default_log_path()}"
+            )
+        return {"ok": True, "topic": name, "title": title, "body": body}
+
+    def log_path(self) -> dict[str, Any]:
+        import kirkpr_logging
+        path = kirkpr_logging.default_log_path()
+        return {"ok": True, "path": str(path), "exists": Path(path).is_file()}

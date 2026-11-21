@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>KIR/KPR → Minimax Studio 5.0.05</title>
+  <title>KIR/KPR → Minimax Studio 5.0.06</title>
   <link rel="stylesheet" href="/ui/app.css">
 </head>
 <body>
@@ -24,11 +24,48 @@
   </defs>
 </svg>
 
+
+<div class="menubar" id="menubar">
+  <div class="menu">
+    <button type="button" class="menuBtn" data-menu="file">Datoteka</button>
+    <div class="menuList hidden" id="menu-file">
+      <button type="button" data-file="open">Odpri podatke…</button>
+      <button type="button" data-file="last">Odpri zadnjo datoteko</button>
+      <button type="button" data-file="save-accounts">Shrani konta</button>
+      <button type="button" data-file="save-working">Shrani delovno kopijo</button>
+      <label class="menuChk"><input type="checkbox" id="autoReopenChk"> Ob zagonu ponovno odpri zadnjo datoteko</label>
+      <hr>
+      <button type="button" data-file="knjige">Knjige IR/PR</button>
+      <button type="button" data-file="api">Minimax API</button>
+      <button type="button" data-file="settings">Nastavitve poti…</button>
+      <button type="button" data-file="email">Predloga e-pošte DDV…</button>
+      <button type="button" data-file="export-dir">Odpri zadnjo izhodno mapo</button>
+      <button type="button" data-file="log">Odpri dnevnik…</button>
+      <hr>
+      <button type="button" data-file="exit">Izhod</button>
+    </div>
+  </div>
+  <div class="menu">
+    <button type="button" class="menuBtn" data-menu="view">Videz</button>
+    <div class="menuList hidden" id="menu-view">
+      <button type="button" data-theme="light">Svetla tema</button>
+      <button type="button" data-theme="dark">Temna tema</button>
+    </div>
+  </div>
+  <div class="menu">
+    <button type="button" class="menuBtn" data-menu="help">Pomoč</button>
+    <div class="menuList hidden" id="menu-help">
+      <button type="button" data-help="formats">Podprti formati</button>
+      <button type="button" data-help="changelog">Kaj je novega</button>
+      <button type="button" data-help="about">O programu</button>
+    </div>
+  </div>
+</div>
 <div class="shell">
   <aside class="sidebar" id="sidebar">
     <div class="brand">
       <div class="logo">K</div>
-      <div class="brandText"><b>KirKpr</b><span id="brandVer">5.0.05</span></div>
+      <div class="brandText"><b>KirKpr</b><span id="brandVer">5.0.06</span></div>
     </div>
     <nav class="nav" id="nav">
       <div class="navLbl">Evidence</div>
@@ -77,7 +114,17 @@
             </div>
           </div>
         </div>
-        <button class="btn" type="button" id="openFileBtn"><svg><use href="#i-folder"/></svg> Odpri podatke</button>
+        
+            <div class="picker" id="sessionPicker">
+              <button class="pickBtn" type="button" id="sessionBtn">
+                <div class="pickTxt"><small>Seja</small><b id="sessionLabel">Ni shranjene seje</b></div>
+              </button>
+            </div>
+            <select id="sessionSelect" title="Shranjene seje"></select>
+            <button class="btn ghost" type="button" id="sessionOpenBtn">Odpri sejo</button>
+            <button class="btn ghost" type="button" id="sessionSaveBtn">Shrani sejo</button>
+            <button class="btn ghost" type="button" id="sessionDeleteBtn">Briši sejo</button>
+<button class="btn" type="button" id="openFileBtn"><svg><use href="#i-folder"/></svg> Odpri podatke</button>
         <button class="iconBtn" type="button" id="themeBtn" title="Svetla / temna"><svg><use href="#i-moon"/></svg></button>
       </div>
     </div>
@@ -172,7 +219,7 @@
     </div>
     <div class="page hidden" data-page="about" id="page-about">
       <div style="padding:8px 22px 22px;max-width:720px" id="aboutBox">
-        <p><b>KIR/KPR → Minimax Studio 5.0.05</b> — vmesnik WebView2 po zgledu Trops Studio 5.</p>
+        <p><b>KIR/KPR → Minimax Studio 5.0.06</b> — vmesnik WebView2 po zgledu Trops Studio 5.</p>
         <p>Tk vmesnik 4.0.3 ostane v mapi (KirKpr_V4.0.3.pyw), dokler 5.x ne pokrije vseh zaslonov.</p>
         <p>Izračuni DDV, XML in oddaja v Minimax se v tej različici ne spreminjajo.</p>
       </div>
@@ -219,6 +266,19 @@
     <div class="modalFoot">
       <button class="btn ghost" type="button" id="editorCancel">Prekliči</button>
       <button class="btn" type="button" id="editorSave">Začasno shrani</button>
+    </div>
+  </div>
+</div>
+
+<div id="helpModal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modalCard">
+    <div class="modalHead">
+      <div><h2 id="helpTitle">Pomoč</h2></div>
+      <button class="iconBtn" type="button" id="helpClose" title="Zapri">×</button>
+    </div>
+    <div class="modalBody"><pre id="helpBody" class="helpBody"></pre></div>
+    <div class="modalFoot">
+      <button class="btn" type="button" id="helpOk">Zapri</button>
     </div>
   </div>
 </div>
