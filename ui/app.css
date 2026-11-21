@@ -343,3 +343,10 @@ details.savedMaps{margin-top:12px}details.savedMaps summary{cursor:pointer;font-
 .fld input,.fld textarea,.fld select{width:100%;height:34px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:0 10px;color:var(--text)}
 .fld input.num{text-align:right;font-variant-numeric:tabular-nums}
 .fld.vatBase input{box-shadow:inset 3px 0 0 var(--accent)}
+
+.tableWrap{overflow:auto}
+.matchOk td:first-child{box-shadow:inset 3px 0 0 var(--good)}
+.matchApi td:first-child{box-shadow:inset 3px 0 0 var(--warn)}
+.matchLocal td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
+.totalsRow td{font-weight:700;background:var(--surface-3)}
+#knjigaTotals{margin:0 22px 10px}

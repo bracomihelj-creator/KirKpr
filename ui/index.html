@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>KIR/KPR → Minimax Studio 5.0.04</title>
+  <title>KIR/KPR → Minimax Studio 5.0.05</title>
   <link rel="stylesheet" href="/ui/app.css">
 </head>
 <body>
@@ -28,7 +28,7 @@
   <aside class="sidebar" id="sidebar">
     <div class="brand">
       <div class="logo">K</div>
-      <div class="brandText"><b>KirKpr</b><span id="brandVer">5.0.04</span></div>
+      <div class="brandText"><b>KirKpr</b><span id="brandVer">5.0.05</span></div>
     </div>
     <nav class="nav" id="nav">
       <div class="navLbl">Evidence</div>
@@ -142,7 +142,19 @@
       <div class="tableWrap"><table class="grid" id="tblDdvo"></table></div>
     </div>
     <div class="page hidden" data-page="knjige" id="page-knjige">
-      <div class="empty" style="padding:40px 22px">Knjige IR/PR (JSON in Minimax pogled) bodo v naslednjem koraku. Tk urejevalnik ostane na voljo v Zaganjalniku 4.0.3.</div>
+      <div class="bookTools" id="knjigeTools" style="margin:0 22px 10px">
+        <button class="btn" type="button" id="knjigaModeJson" data-knjiga-mode="json">JSON (KIR/KPR)</button>
+        <button class="btn ghost" type="button" id="knjigaModeApi" data-knjiga-mode="api">Minimax API</button>
+        <button class="btn ghost" type="button" id="knjigaRefreshBtn">Osveži API</button>
+        <label class="chk"><input type="checkbox" id="knjigaHideZero"> Skrij ničelne stolpce</label>
+        <span class="muted" id="knjigaSummary"></span>
+      </div>
+      <div class="kpis" id="knjigaTotals"></div>
+      <div class="bookTools" style="margin:0 22px 8px">
+        <button class="btn" type="button" id="knjigaBookIr" data-knjiga-book="IR">Knjiga IR</button>
+        <button class="btn ghost" type="button" id="knjigaBookPr" data-knjiga-book="PR">Knjiga PR</button>
+      </div>
+      <div class="tableWrap"><table class="grid" id="tblKnjiga"></table></div>
     </div>
     <div class="page hidden" data-page="api" id="page-api">
       <div class="empty" style="padding:40px 22px">Minimax API povezava, predpreverjanje, oddaja in »Ponovi NAPAKA« bodo v naslednjem koraku. Izračuni in oddaja ostajajo nespremenjeni v obstoječi kodi.</div>
@@ -160,7 +172,7 @@
     </div>
     <div class="page hidden" data-page="about" id="page-about">
       <div style="padding:8px 22px 22px;max-width:720px" id="aboutBox">
-        <p><b>KIR/KPR → Minimax Studio 5.0.04</b> — vmesnik WebView2 po zgledu Trops Studio 5.</p>
+        <p><b>KIR/KPR → Minimax Studio 5.0.05</b> — vmesnik WebView2 po zgledu Trops Studio 5.</p>
         <p>Tk vmesnik 4.0.3 ostane v mapi (KirKpr_V4.0.3.pyw), dokler 5.x ne pokrije vseh zaslonov.</p>
         <p>Izračuni DDV, XML in oddaja v Minimax se v tej različici ne spreminjajo.</p>
       </div>

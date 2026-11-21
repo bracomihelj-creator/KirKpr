@@ -63,11 +63,11 @@ class WebviewServiceTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def test_version_is_5_0_04(self) -> None:
-        self.assertEqual("5.0.04", APP_VERSION)
+    def test_version_is_5_0_05(self) -> None:
+        self.assertEqual("5.0.05", APP_VERSION)
         boot = self.svc.boot()
         self.assertTrue(boot["ok"])
-        self.assertEqual("5.0.04", boot["version"])
+        self.assertEqual("5.0.05", boot["version"])
         self.assertFalse(boot["has_data"])
 
     def test_load_source_lists_ir_pr_and_ddvo(self) -> None:
@@ -221,6 +221,48 @@ class WebviewServiceTests(unittest.TestCase):
         if project_before is not None:
             self.assertEqual(project_before, project_cfg.read_bytes())
 
+
+    def test_knjiga_json_and_api_views_without_network(self) -> None:
+        project_cfg = Path(r"D:\PISARNA\Python\KirKpr\convert_KIrKpr_to_minimax_config.json")
+        project_before = project_cfg.read_bytes() if project_cfg.is_file() else None
+        self.svc.load_source(str(self.sample))
+        data = self.svc.list_knjiga("IR", mode="json")
+        self.assertTrue(data["ok"])
+        self.assertEqual("json", data["mode"])
+        self.assertEqual(1, data["visible"])
+        self.assertEqual("IR-1", data["rows"][0]["p3"])
+        self.assertIn("100,00", data["rows"][0]["p7"])
+        self.assertTrue(any(c["key"] == "p14" for c in data["columns"]))
+        hidden = self.svc.list_knjiga("IR", mode="json", hide_zero=True)
+        hidden_keys = [c["key"] for c in hidden["columns"]]
+        self.assertIn("p7", hidden_keys)
+        self.assertIn("p14", hidden_keys)
+        self.assertNotIn("p27", hidden_keys)
+
+        pr = self.svc.list_knjiga("PR", mode="json")
+        self.assertEqual(1, pr["visible"])
+        self.assertEqual("PR-1", pr["rows"][0]["p3"])
+
+        self.svc.knjiga_records = {
+            "IR": [{
+                "IssuedInvoiceId": 99,
+                "InvoiceNumber": "IR-1",
+                "DateIssued": "2026-04-10",
+                "CustomerName": "Kupec d.o.o.",
+                "InvoiceAmount": "122.00",
+                "Status": "O",
+            }],
+            "PR": [],
+        }
+        api_view = self.svc.list_knjiga("IR", mode="api")
+        self.assertEqual("api", api_view["mode"])
+        matches = [row["match"] for row in api_view["rows"]]
+        self.assertIn("V KIR/KPR", matches)
+        with self.assertRaises(core.KirkprError):
+            self.svc.refresh_knjige_from_api()
+        if project_before is not None:
+            self.assertEqual(project_before, project_cfg.read_bytes())
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -284,7 +326,7 @@ class HostHttpTests(unittest.TestCase):
     def test_boot_and_load_source_via_http(self) -> None:
         code, body = self._open("/api/boot")
         self.assertEqual(200, code)
-        self.assertEqual("5.0.04", body["version"])
+        self.assertEqual("5.0.05", body["version"])
         code, body = self._open("/api/action", {"name": "load_source", "path": str(self.sample), "sync": True})
         self.assertEqual(200, code)
         self.assertTrue(body.get("has_data"))
@@ -344,4 +386,12 @@ class HostHttpTests(unittest.TestCase):
         code, quote = self._open("/api/ddvo/quote?konto62=0")
         self.assertEqual(200, code)
         self.assertTrue(quote.get("ok"))
+
+    def test_knjiga_json_via_http(self) -> None:
+        code, body = self._open("/api/action", {"name": "load_source", "path": str(self.sample), "sync": True})
+        self.assertEqual(200, code)
+        code, data = self._open("/api/knjige?book=IR&mode=json")
+        self.assertEqual(200, code)
+        self.assertEqual(1, data["visible"])
+        self.assertEqual("IR-1", data["rows"][0]["p3"])
 

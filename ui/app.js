@@ -1,6 +1,6 @@
-/* KirKpr 5.0.04 — vmesnik WebView2 (klici HTTP API / pywebview Bridge). */
+/* KirKpr 5.0.05 — vmesnik WebView2 (klici HTTP API / pywebview Bridge). */
 (function () {
-  var state = { view: "ir", boot: null, companies: [], selected: {}, editor: null, dataEditor: null, dataField: "", lastExportDir: "", lastExportPath: "" };
+  var state = { view: "ir", boot: null, companies: [], selected: {}, editor: null, dataEditor: null, dataField: "", lastExportDir: "", lastExportPath: "", knjigaBook: "IR", knjigaMode: "json" };
   var titles = {
     ir: "Izdani računi",
     pr: "Prejeti računi",
@@ -72,7 +72,7 @@
       return;
     }
     state.boot = s;
-    $("brandVer").textContent = s.version || "5.0.04";
+    $("brandVer").textContent = s.version || "5.0.05";
     var company = s.company;
     $("companyLabel").textContent = company ? ((company.zst ? company.zst + " · " : "") + (company.name || company.key)) : "Ni izbrano";
     $("periodLabel").textContent = s.period_label || (s.period_from ? (s.period_from + " – " + s.period_to) : "—");
@@ -143,6 +143,10 @@
         var chosen = !!(state.selected[state.view] && state.selected[state.view][id]);
         var cls = [];
         if (row.tag === "tax_only" || row.tag === "vat_not_deducted") cls.push("warnRow");
+        if (row.tag === "match_ok") cls.push("matchOk");
+        if (row.tag === "match_api_only") cls.push("matchApi");
+        if (row.tag === "match_local_only") cls.push("matchLocal");
+        if (row.totals || row.zapst === "Σ") cls.push("totalsRow");
         if (chosen) cls.push("selected");
         html += "<tr data-id=\"" + escapeHtml(id) + "\"" + (cls.length ? " class=\"" + cls.join(" ") + "\"" : "") + ">";
         if (selectable) {
@@ -237,6 +241,61 @@
     }).catch(function () {});
   }
 
+
+  function syncKnjigaButtons() {
+    var jsonBtn = $("knjigaModeJson");
+    var apiBtn = $("knjigaModeApi");
+    if (jsonBtn) jsonBtn.classList.toggle("ghost", state.knjigaMode !== "json");
+    if (apiBtn) apiBtn.classList.toggle("ghost", state.knjigaMode !== "api");
+    var irBtn = $("knjigaBookIr");
+    var prBtn = $("knjigaBookPr");
+    if (irBtn) irBtn.classList.toggle("ghost", state.knjigaBook !== "IR");
+    if (prBtn) prBtn.classList.toggle("ghost", state.knjigaBook !== "PR");
+  }
+
+  function renderKnjiga(data) {
+    var cols = (data.columns || []).map(function (c) { return { key: c.key, label: c.label }; });
+    var money = {};
+    (data.columns || []).forEach(function (c) { if (c.money) money[c.key] = 1; });
+    var rows = data.rows || [];
+    if (data.totals && cols.length) {
+      var totalRow = { zapst: "Σ", obdobje: "SKUPAJ", match: "SKUPAJ", totals: true };
+      cols.forEach(function (c) {
+        if (c.key !== "zapst" && data.totals[c.key] != null) totalRow[c.key] = data.totals[c.key];
+      });
+      rows = rows.concat([totalRow]);
+    }
+    renderTable($("tblKnjiga"), cols, rows, money, false);
+    $("knjigaSummary").textContent = data.summary || "";
+    var box = $("knjigaTotals");
+    box.innerHTML = "";
+    (data.columns || []).forEach(function (c) {
+      if (!c.money) return;
+      var amount = (data.totals || {})[c.key];
+      if (!amount || amount === "0,00") return;
+      var card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = "<small>" + escapeHtml(c.label) + "</small><b>" + escapeHtml(amount) + "</b>";
+      box.appendChild(card);
+    });
+    $("statusLine").textContent = data.has_data
+      ? ("Prikazanih " + data.book + ": " + data.visible + (data.count != null ? " / " + data.count : ""))
+      : "Ni naloženih podatkov.";
+  }
+
+  function reloadKnjige() {
+    syncKnjigaButtons();
+    var q = $("searchBox").value || "";
+    var hide = $("knjigaHideZero") && $("knjigaHideZero").checked ? "1" : "";
+    return api("/api/knjige?book=" + encodeURIComponent(state.knjigaBook)
+      + "&mode=" + encodeURIComponent(state.knjigaMode)
+      + "&q=" + encodeURIComponent(q)
+      + (hide ? "&hide_zero=1" : "")).then(function (data) {
+      if (data.ok === false) throw new Error(data.msg || data.error);
+      renderKnjiga(data);
+    });
+  }
+
   function reloadView() {
     var q = $("searchBox").value || "";
     var view = state.view;
@@ -252,6 +311,9 @@
         renderTable($("tblPr"), PR_COLS, data.rows || [], MONEY, true);
         $("statusLine").textContent = data.has_data ? ("Prikazanih PR: " + data.visible + " / " + data.count) : "Ni naloženih podatkov.";
       });
+    }
+    if (view === "knjige") {
+      return reloadKnjige();
     }
     if (view === "ddvo") {
       return api("/api/ddvo?q=" + encodeURIComponent(q)).then(function (data) {
@@ -285,7 +347,7 @@
     document.querySelectorAll(".page").forEach(function (page) {
       page.classList.toggle("hidden", page.getAttribute("data-page") !== name);
     });
-    $("toolbar").classList.toggle("hidden", name === "settings" || name === "about" || name === "knjige" || name === "api");
+    $("toolbar").classList.toggle("hidden", name === "settings" || name === "about" || name === "api");
     reloadView().catch(function (e) { toast(e.message, true); });
   }
 
@@ -699,6 +761,33 @@
       payer_iban: $("payerIban").value,
       execution_date: $("virmanDate").value
     }).then(function () { reloadView(); }).catch(function (e) { toast(e.message, true); });
+  });
+
+
+  document.querySelectorAll("[data-knjiga-mode]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      state.knjigaMode = btn.getAttribute("data-knjiga-mode") || "json";
+      act("set_knjiga_mode", { mode: state.knjigaMode }).then(function (s) {
+        if (s) applyState(s);
+        reloadView();
+      }).catch(function (e) { toast(e.message, true); });
+    });
+  });
+  document.querySelectorAll("[data-knjiga-book]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      state.knjigaBook = btn.getAttribute("data-knjiga-book") || "IR";
+      reloadView().catch(function (e) { toast(e.message, true); });
+    });
+  });
+  $("knjigaHideZero").addEventListener("change", function () {
+    reloadView().catch(function (e) { toast(e.message, true); });
+  });
+  $("knjigaRefreshBtn").addEventListener("click", function () {
+    runAction("refresh_knjige_from_api", {}).then(function (s) {
+      state.knjigaMode = "api";
+      if (s) applyState(s);
+      reloadView();
+    }).catch(function (e) { toast(e.message, true); });
   });
 
   boot().catch(function (e) { toast(e.message || "Zagon ni uspel.", true); });

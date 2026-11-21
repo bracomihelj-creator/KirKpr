@@ -7,6 +7,7 @@ Samo kliče kirkpr_minimax_core, register podjetij in pomožne funkcije obdobja.
 from __future__ import annotations
 
 import copy
+import re
 import tempfile
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
@@ -14,10 +15,11 @@ from pathlib import Path
 from typing import Any, Mapping
 
 import kirkpr_company_registry as registry
+import minimax_api_client as minimax_api
 import kirkpr_minimax_core as core
 import convert_KIrKpr_to_minimax as gui_helpers
 
-APP_VERSION = "5.0.04"
+APP_VERSION = "5.0.05"
 APP_TITLE = "KIR/KPR \u2192 Minimax Studio"
 APP_EDITION = "WebView2"
 
@@ -82,6 +84,10 @@ class KirKprService:
         self.remember_supplier = True
         self.working_dirty = False
         self.pending_working_changes: list[str] = []
+        self.knjiga_view_mode = "json"
+        self.knjiga_records: dict[str, list[dict[str, Any]]] = {"IR": [], "PR": []}
+        self.knjiga_period: tuple[str, str] | None = None
+        self.minimax_client = None
         self._reload_companies()
         self._restore_selected_company()
 
@@ -1104,3 +1110,358 @@ class KirKprService:
             raise core.KirkprError("Datoteka ali mapa ne obstaja.")
         gui_helpers.open_in_file_manager(target)
         return {"ok": True, "path": str(target), "msg": f"Odprto: {target}"}
+
+
+    def _knjiga_cell_date(self, row: Mapping[str, Any], field: str) -> str:
+        parsed = gui_helpers.parse_iso_date(row.get(field))
+        if parsed is not None:
+            return gui_helpers.format_si_date(parsed)
+        return str(row.get(field) or "").strip()
+
+    def _knjiga_cell_obdobje(self, row: Mapping[str, Any]) -> str:
+        if self.period_from and self.period_to:
+            f0, f1 = self.period_from, self.period_to
+            if (
+                f0.year == f1.year
+                and f0.month != f1.month
+                and f0.day == 1
+                and f1 == gui_helpers.month_bounds(f1.year, f1.month)[1]
+            ):
+                return f"{f0.month:02d}-{f1.month:02d}.{str(f0.year)[-2:]}"
+        raw = str(row.get("OBDOBJE") or "").strip()
+        if not re.fullmatch(r"\d{4}", raw):
+            return raw
+        m1 = int(raw[:2])
+        m2 = int(raw[2:])
+        year = self.period_from.year if self.period_from else date.today().year
+        if 1 <= m1 <= 12 and 1 <= m2 <= 12:
+            yy = str(year)[-2:]
+            if m1 == m2:
+                return f"{m1:02d}.{yy}"
+            return f"{m1:02d}-{m2:02d}.{yy}"
+        parsed = gui_helpers.parse_obdobje_mmyy(raw)
+        if parsed is not None:
+            y, m = parsed
+            return f"{m:02d}.{str(y)[-2:]}"
+        return raw
+
+    def _knjiga_cell_money(self, row: Mapping[str, Any], field: str) -> str:
+        raw = row.get(field)
+        if raw in (None, ""):
+            return "0,00"
+        return gui_helpers.format_money(raw)
+
+    def _knjiga_money_columns(self, book: str, mode: str) -> tuple[str, ...]:
+        if mode == "api":
+            return ("amount",)
+        if book == "IR":
+            return tuple(f"p{i}" for i in range(7, 28))
+        return tuple(f"p{i}" for i in range(8, 22))
+
+    def _knjiga_column_field(self, column: str) -> str:
+        if column.startswith("p") and column[1:].isdigit():
+            return column.upper()
+        return column
+
+    def _knjiga_column_spec(self, book: str, mode: str) -> tuple[list[str], dict[str, str]]:
+        if mode == "api":
+            columns = ["zapst", "api_id", "date", "invoice", "party", "tax_id", "amount", "status", "match"]
+            headings = {
+                "zapst": "1 ZŠT",
+                "api_id": "API ID",
+                "date": "Datum",
+                "invoice": "4 Listina",
+                "party": "Kupec" if book == "IR" else "Dobavitelj",
+                "tax_id": "ID za DDV",
+                "amount": "7 Znesek",
+                "status": "Status",
+                "match": "KIR/KPR",
+            }
+            return columns, headings
+        if book == "IR":
+            columns = [
+                "zapst", "obdobje", "p2", "p3", "p4", "p5", "p6ds", "p6",
+                "p7", "p8", "p9", "p10", "p11", "p12", "p13",
+                "p14", "p15", "p16", "p17", "p18", "p19", "p20", "p21", "p22",
+                "p23", "p24", "p25", "p26", "p27",
+            ]
+            headings = {
+                "zapst": "1 ZŠT", "obdobje": "2 Obdobje", "p2": "3 Dat knj",
+                "p3": "4 Listina", "p4": "Dat list", "p5": "Kupec",
+                "p6ds": "ID za DDV", "p6": "Drž",
+                "p7": "7 Vred brez DDV", "p8": "8 Samoobd", "p9": "9 Oprošč",
+                "p10": "10 EU blago", "p11": "11 EU stor", "p12": "12 Prod dalj", "p13": "13 Montaža",
+                "p14": "14 DDV 22%", "p15": "15 DDV 9,5%", "p16": "16 DDV 5%",
+                "p17": "17 EU DDV 22%", "p18": "18 EU stor 22%", "p19": "19 EU DDV 9,5%",
+                "p20": "20 EU stor 9,5%", "p21": "21 EU DDV 5%", "p22": "22 EU stor 5%",
+                "p23": "23 Samoobd 22%", "p24": "24 Samoobd 9,5%", "p25": "25 Samoobd 5%",
+                "p26": "26 Uvoz DDV", "p27": "27 Neobdavč",
+            }
+        else:
+            columns = [
+                "zapst", "obdobje", "p2", "p4", "p3", "p5", "p6", "p7ds", "p7",
+                "p8", "p9", "p10", "p11", "p12", "p13", "p14", "p15", "p16",
+                "p17", "p18", "p19", "p20", "p21",
+            ]
+            headings = {
+                "zapst": "1 ZŠT", "obdobje": "2 Obdobje", "p2": "3 Dat knj",
+                "p4": "4 Dat pr", "p3": "5 Listina", "p5": "6 Dat list",
+                "p6": "7 Dobavitelj", "p7ds": "ID za DDV", "p7": "Drž",
+                "p8": "8 Vred brez DDV", "p9": "9 Samoobd", "p10": "10 Prid BL",
+                "p11": "11 Prej ST", "p12": "12 Neprem", "p13": "13 OS",
+                "p14": "14 Oprošč", "p15": "15 Opr nepr", "p16": "16 Opr OS",
+                "p17": "17 Neodb DDV", "p18": "18 VST 22%", "p19": "19 VST 9,5%",
+                "p20": "20 VST 5%", "p21": "21 Pavšal",
+            }
+        headings = {
+            col: (
+                f"{text} →{'+'.join(core.ddvo_codes_for_field(book, self._knjiga_column_field(col)))}"
+                if core.ddvo_codes_for_field(book, self._knjiga_column_field(col))
+                else text
+            )
+            for col, text in headings.items()
+        }
+        return columns, headings
+
+    def _local_book_refs(self, book: str) -> dict[str, Mapping[str, Any]]:
+        refs: dict[str, Mapping[str, Any]] = {}
+        if not self.dataset:
+            return refs
+        rows = self.dataset.kir if book == "IR" else self.dataset.kpr
+        for row in rows:
+            if not self._row_in_period(book, row):
+                continue
+            if book == "IR":
+                metrics = core.ir_metrics(row, self.dataset.kpr)
+                if metrics.get("tax_only"):
+                    continue
+            key = minimax_api.normal_invoice_reference(row.get("P3"))
+            if key:
+                refs[key] = row
+        return refs
+
+    def set_knjiga_mode(self, mode: str = "json") -> dict[str, Any]:
+        wanted = "api" if str(mode or "").strip().lower() == "api" else "json"
+        self.knjiga_view_mode = wanted
+        state = self._state()
+        state["knjiga_mode"] = self.knjiga_view_mode
+        state["msg"] = "Knjige: predogled Minimax API." if wanted == "api" else "Knjige: predogled JSON."
+        return state
+
+    def list_knjiga(
+        self,
+        book: str = "IR",
+        search: str = "",
+        mode: str = "",
+        *,
+        hide_zero: bool = False,
+    ) -> dict[str, Any]:
+        book = str(book or "IR").upper()
+        if book not in {"IR", "PR"}:
+            raise core.KirkprError("Knjiga mora biti IR ali PR.")
+        mode = str(mode or self.knjiga_view_mode or "json").strip().lower()
+        if mode not in {"json", "api"}:
+            mode = "json"
+        if mode == "api":
+            return self._list_knjiga_api(book, search)
+        return self._list_knjiga_json(book, search, hide_zero=hide_zero)
+
+    def _list_knjiga_json(self, book: str, search: str, *, hide_zero: bool) -> dict[str, Any]:
+        columns, headings = self._knjiga_column_spec(book, "json")
+        money_cols = self._knjiga_money_columns(book, "json")
+        tokens = self._tokens(search)
+        totals: dict[str, Decimal] = {col: Decimal("0") for col in money_cols}
+        rows_out: list[dict[str, Any]] = []
+        if self.dataset is None:
+            return {
+                "ok": True, "book": book, "mode": "json", "rows": [], "visible": 0,
+                "count": 0, "has_data": False,
+                "columns": [{"key": c, "label": headings[c], "money": c in money_cols} for c in columns],
+                "totals": {c: gui_helpers.format_money(0) for c in money_cols},
+                "summary": "JSON: najprej odpri KIR/KPR podatke.",
+            }
+        source_rows = self.dataset.kir if book == "IR" else self.dataset.kpr
+        for index, row in enumerate(source_rows):
+            if not self._row_in_ddvo_period(row):
+                continue
+            if book == "IR":
+                metrics = core.ir_metrics(row, self.dataset.kpr)
+                tax_only = bool(metrics.get("tax_only"))
+                item = {
+                    "id": f"kir:{index}",
+                    "zapst": str(row.get("ZAPST") or ""),
+                    "obdobje": self._knjiga_cell_obdobje(row),
+                    "p2": self._knjiga_cell_date(row, "P2"),
+                    "p3": str(row.get("P3") or ""),
+                    "p4": self._knjiga_cell_date(row, "P4"),
+                    "p5": str(row.get("P5") or ""),
+                    "p6ds": str(row.get("P6DS") or ""),
+                    "p6": str(row.get("P6") or ""),
+                    **{f"p{i}": self._knjiga_cell_money(row, f"P{i}") for i in range(7, 28)},
+                    "tag": "tax_only" if tax_only else "",
+                }
+                extra = [item["p3"], item["p5"], item["p6ds"], "samoobdavčitev" if tax_only else "izdani"]
+            else:
+                metrics = core.pr_metrics(row)
+                self_assessment = bool(metrics.get("self_assessment"))
+                vat_deductible = bool(metrics.get("vat_deductible"))
+                item = {
+                    "id": f"kpr:{index}",
+                    "zapst": str(row.get("ZAPST") or ""),
+                    "obdobje": self._knjiga_cell_obdobje(row),
+                    "p2": self._knjiga_cell_date(row, "P2"),
+                    "p4": self._knjiga_cell_date(row, "P4"),
+                    "p3": str(row.get("P3") or ""),
+                    "p5": self._knjiga_cell_date(row, "P5"),
+                    "p6": str(row.get("P6") or ""),
+                    "p7ds": str(row.get("P7DS") or ""),
+                    "p7": str(row.get("P7") or ""),
+                    **{f"p{i}": self._knjiga_cell_money(row, f"P{i}") for i in range(8, 22)},
+                    "tag": "vat_not_deducted" if not vat_deductible else ("self_assessment" if self_assessment else ""),
+                }
+                extra = [item["p3"], item["p6"], item["p7ds"], "samoobdavčitev" if self_assessment else "prejeti"]
+            if not self._haystack_matches(tokens, list(item.values()) + extra):
+                continue
+            for col in money_cols:
+                field = self._knjiga_column_field(col)
+                try:
+                    totals[col] += core.decimal_value(row.get(field))
+                except core.KirkprError:
+                    pass
+            rows_out.append(item)
+
+        visible_cols = list(columns)
+        if hide_zero:
+            identity = {"zapst", "obdobje", "p2", "p3", "p4", "p5", "p6", "p6ds", "p7", "p7ds"}
+            visible_cols = [c for c in columns if c not in money_cols or totals[c] != 0 or c in identity]
+        col_meta = [
+            {
+                "key": c,
+                "label": headings[c],
+                "money": c in money_cols,
+                "ddvo": list(core.ddvo_codes_for_field(book, self._knjiga_column_field(c))),
+            }
+            for c in visible_cols
+        ]
+        ir_n = sum(1 for r in self.dataset.kir if self._row_in_ddvo_period(r))
+        pr_n = sum(1 for r in self.dataset.kpr if self._row_in_ddvo_period(r))
+        return {
+            "ok": True,
+            "book": book,
+            "mode": "json",
+            "rows": rows_out,
+            "visible": len(rows_out),
+            "count": ir_n if book == "IR" else pr_n,
+            "has_data": True,
+            "columns": col_meta,
+            "totals": {c: gui_helpers.format_money(totals[c]) for c in money_cols},
+            "summary": f"Predogled JSON (KIR/KPR). IR {ir_n}, PR {pr_n}.",
+        }
+
+    def _list_knjiga_api(self, book: str, search: str) -> dict[str, Any]:
+        columns, headings = self._knjiga_column_spec(book, "api")
+        money_cols = self._knjiga_money_columns(book, "api")
+        tokens = self._tokens(search)
+        totals: dict[str, Decimal] = {col: Decimal("0") for col in money_cols}
+        rows_out: list[dict[str, Any]] = []
+        local_refs = self._local_book_refs(book)
+        api_refs: set[str] = set()
+        visible = 0
+        for record in self.knjiga_records.get(book) or []:
+            ref = minimax_api.invoice_record_reference(record)
+            ref_key = minimax_api.normal_invoice_reference(ref)
+            if ref_key:
+                api_refs.add(ref_key)
+            match = "V KIR/KPR" if ref_key and ref_key in local_refs else "Samo v Minimax"
+            rid = record.get("IssuedInvoiceId") if book == "IR" else record.get("ReceivedInvoiceId")
+            if rid is None:
+                for key in ("ID", "Id", "id"):
+                    if record.get(key) is not None:
+                        rid = record.get(key)
+                        break
+            amount = minimax_api.invoice_record_amount(record)
+            item = {
+                "id": f"k{book.lower()}:api:{visible}",
+                "zapst": str(visible + 1),
+                "api_id": str(rid or ""),
+                "date": minimax_api.invoice_record_date(record),
+                "invoice": ref,
+                "party": minimax_api.invoice_record_party(record),
+                "tax_id": minimax_api.invoice_record_tax_id(record),
+                "amount": gui_helpers.format_money(amount),
+                "status": minimax_api.invoice_record_status(record),
+                "match": match,
+                "tag": "match_ok" if match == "V KIR/KPR" else "match_api_only",
+            }
+            if not self._haystack_matches(tokens, list(item.values())):
+                continue
+            try:
+                totals["amount"] += core.decimal_value(amount)
+            except (core.KirkprError, KeyError):
+                pass
+            rows_out.append(item)
+            visible += 1
+        for ref_key, row in local_refs.items():
+            if ref_key in api_refs:
+                continue
+            item = {
+                "id": f"k{book.lower()}:local:{visible}",
+                "zapst": str(visible + 1),
+                "api_id": "",
+                "date": str(row.get("P2") or row.get("P4") or ""),
+                "invoice": str(row.get("P3") or ""),
+                "party": str(row.get("P5") or "") if book == "IR" else str(row.get("P6") or ""),
+                "tax_id": str(row.get("P6DS") or "") if book == "IR" else str(row.get("P7DS") or ""),
+                "amount": "",
+                "status": "",
+                "match": "Manjka v Minimax",
+                "tag": "match_local_only",
+            }
+            if not self._haystack_matches(tokens, list(item.values())):
+                continue
+            rows_out.append(item)
+            visible += 1
+        has_api = bool(self.knjiga_records.get("IR") or self.knjiga_records.get("PR"))
+        summary = (
+            "Minimax API: ni naloženih knjig — klikni »Osveži API«."
+            if not has_api
+            else f"Predogled Minimax API. Stolpec KIR/KPR = ujemanje z lokalnim JSON."
+        )
+        return {
+            "ok": True,
+            "book": book,
+            "mode": "api",
+            "rows": rows_out,
+            "visible": len(rows_out),
+            "count": len(self.knjiga_records.get(book) or []),
+            "has_data": has_api or bool(local_refs),
+            "columns": [{"key": c, "label": headings[c], "money": c in money_cols} for c in columns],
+            "totals": {c: gui_helpers.format_money(totals[c]) for c in money_cols},
+            "summary": summary,
+        }
+
+    def refresh_knjige_from_api(self) -> dict[str, Any]:
+        if not self.selected_company:
+            raise core.KirkprError("Najprej izberi podjetje.")
+        client = self.minimax_client
+        if client is None or not getattr(client, "organisation_id", None):
+            raise core.KirkprError("Najprej poveži Minimax API.")
+        date_from = self.period_from.isoformat() if self.period_from else (self.dataset.period_from if self.dataset else "")
+        date_to = self.period_to.isoformat() if self.period_to else (self.dataset.period_to if self.dataset else "")
+        result = {
+            "IR": client.invoice_book("IR", date_from=date_from, date_to=date_to),
+            "PR": client.invoice_book("PR", date_from=date_from, date_to=date_to),
+            "period": (date_from, date_to),
+        }
+        self.knjiga_records = {
+            "IR": list(result.get("IR") or []),
+            "PR": list(result.get("PR") or []),
+        }
+        self.knjiga_period = tuple(result.get("period") or (date_from, date_to))
+        self.knjiga_view_mode = "api"
+        ir_n = len(self.knjiga_records["IR"])
+        pr_n = len(self.knjiga_records["PR"])
+        state = self._state()
+        state["knjiga_mode"] = "api"
+        state["msg"] = f"Knjige API: IR {ir_n}, PR {pr_n}."
+        return state

@@ -223,6 +223,17 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/ddvo":
                 self._json_resp(200, s.ddvo((q.get("q") or [""])[0]))
                 return
+            if path == "/api/knjige":
+                self._json_resp(
+                    200,
+                    s.list_knjiga(
+                        str((q.get("book") or ["IR"])[0]),
+                        str((q.get("q") or [""])[0]),
+                        str((q.get("mode") or [""])[0]),
+                        hide_zero=str((q.get("hide_zero") or [""])[0]) in {"1", "true", "yes"},
+                    ),
+                )
+                return
             if path == "/api/ddvo/quote":
                 self._json_resp(200, s.virman_quote((q.get("konto62") or ["0"])[0]))
                 return
@@ -317,6 +328,7 @@ LONG_ACTIONS = {
     "export_ddvo": "Izvoz DDV-O",
     "preview_ddvo": "Predogled DDV-O",
     "create_virman_package": "Priprava PDF in virmana",
+    "refresh_knjige_from_api": "Branje knjig iz Minimax API",
 }
 
 
@@ -354,6 +366,8 @@ def _actions(s: KirKprService) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
             source_pdf=str(b.get("source_pdf") or ""),
         ),
         "open_export_path": lambda b: s.open_export_path(str(b.get("path") or "")),
+        "set_knjiga_mode": lambda b: s.set_knjiga_mode(str(b.get("mode") or "json")),
+        "refresh_knjige_from_api": lambda b: s.refresh_knjige_from_api(),
     }
 
 
