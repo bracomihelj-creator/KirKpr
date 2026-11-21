@@ -1,7 +1,7 @@
 """Majhen Minimax OAuth/API odjemalec za neposredno oddajo KIR/KPR temeljnic.
 
 Gesla se ne shranjujejo v konfiguracijo pretvornika. Privzeto se preberejo iz
-obstoječe datoteke ``DavčnaBlagajna/blagajna_minimax_settings.json``.
+obstoječe datoteke ``DavčnaBlagajna_5.1/blagajna_minimax_settings.json``.
 """
 
 from __future__ import annotations
@@ -119,6 +119,7 @@ def shared_settings_candidates(base_dir: Path | None = None) -> list[Path]:
     base = (base_dir or Path(__file__).resolve().parent).resolve()
     python_root = base.parent
     return [
+        python_root / "DavčnaBlagajna_5.1" / "blagajna_minimax_settings.json",
         python_root / "DavčnaBlagajna" / "blagajna_minimax_settings.json",
         python_root / "Podatki" / "minimax_config.json",
         base / "minimax_api_settings.json",
@@ -126,10 +127,33 @@ def shared_settings_candidates(base_dir: Path | None = None) -> list[Path]:
 
 
 def resolve_settings_path(configured: str = "", base_dir: Path | None = None) -> Path:
-    if configured.strip():
-        return Path(configured).expanduser().resolve()
     candidates = shared_settings_candidates(base_dir)
-    return next((path for path in candidates if path.is_file()), candidates[0])
+    first_existing = next((path for path in candidates if path.is_file()), None)
+    if configured.strip():
+        configured_path = Path(configured).expanduser().resolve()
+        if configured_path.is_file():
+            return configured_path
+        if first_existing is not None:
+            import kirkpr_logging
+
+            kirkpr_logging.get_logger().warning(
+                "Shranjena datoteka Minimax nastavitev ne obstaja (%s). "
+                "Uporabljam prvo najdeno: %s.",
+                configured_path,
+                first_existing,
+            )
+            return first_existing
+        import kirkpr_logging
+
+        kirkpr_logging.get_logger().warning(
+            "Shranjena datoteka Minimax nastavitev ne obstaja (%s), "
+            "prav tako ni nadomestne datoteke med znanimi potmi.",
+            configured_path,
+        )
+        return configured_path
+    if first_existing is not None:
+        return first_existing
+    return candidates[0]
 
 
 def _parse_body(data: bytes, content_type: str) -> Any:
