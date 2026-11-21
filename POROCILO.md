@@ -1,7 +1,7 @@
 # POROČILO — KirKpr (ureditev mape in lokalni git)
 
 **Datum:** 21. 11. 2026 (Europe/Warsaw) · **Mapa:** `D:\PISARNA\Python\KirKpr` (preimenovana iz `KirKpr_convert_cursor`)
-**Verzija programa:** 3.0.191 · **Vmesnik:** Tkinter
+**Verzija programa:** 3.0.192 · **Vmesnik:** Tkinter
 
 ## 1. Kaj je bilo narejeno
 
@@ -47,5 +47,15 @@ KirKpr **nima** aktivne odvisnosti od `QUICK_eNDM` in napake `browser_bridge` v 
 ## 5. Kaj še ni narejeno
 
 - Potisk na GitHub (čaka na ročno ustvarjen repozitorij).
-- Preobleka vmesnika po možnosti A (barve, pisava in gostota iz Trops Studio v5 v obstoječe okno Tkinter). Kode za videz v tem koraku ni bilo spremenjene.
 - Selitev podatkov v mapo `data/` — šele po posebnem predlogu.
+
+## 6. Preobleka vmesnika (možnost A, 21. 11. 2026)
+
+Različica **3.0.192**. Poslovne logike, izračunov, API, XML, DDV-O in baze se sprememba ni dotaknila.
+
+- Privzeti videz je svetla preobleka po Trops Studio 5: ozadje `#f3f5f9`, bela površina, poudarek `#4f46e5`, statusi zeleno/jantar/rdeče (`#059669`, `#b45309`, `#dc2626`), temna leva vrstica `#0f172a`, pisava Segoe UI Variable (če je nameščena) ali Segoe UI okoli 10 pt, vrstice tabel visoke 34 px.
+- Datoteki: predvsem `kirkpr_gui_style.py`; v `convert_KIrKpr_to_minimax.py` samo imena slogov, barve oznak v tabelah, meni Videz in številka različice.
+- Stari temni videz: meni **Videz → Klasični videz**, nato ponovni zagon. Enako z nastavitvijo `gui_theme=classic` v `convert_KIrKpr_to_minimax_config.json`.
+- Commite: `1720f63` (paleta in ttk slogi), `cba3ca6` (stikalo in oznake), ta zapis.
+- Preizkusi: `py_compile` in `ast.parse` sta v redu. `test_kirkpr_minimax.py` (brez zagona okna): 62 uspešnih, 5 preskočenih (ni priloge `04-06-2026.json`), 3 neuspehi v e-pošti/virmanu, ki niso povezani s preobleko in so bili že prej. Programa nisem zagnal, da se nastavitve in baza ne bi spremenile.
+- Potisk na GitHub še ni narejen.
