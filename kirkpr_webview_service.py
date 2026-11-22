@@ -555,6 +555,7 @@ class KirKprService:
             "company_registry_path": str(self.config.get("company_registry_path") or ""),
             "trops_root": str(self.config.get("trops_root") or ""),
             "minimax_settings_path": str(self.config.get("minimax_settings_path") or ""),
+            "source_input_dir": str(self.config.get("source_input_dir") or ""),
         }
 
     def save_path_settings(
@@ -563,10 +564,12 @@ class KirKprService:
         company_registry_path: str = "",
         trops_root: str = "",
         minimax_settings_path: str = "",
+        source_input_dir: str = "",
     ) -> dict[str, Any]:
         self.config["company_registry_path"] = str(company_registry_path or "").strip()
         self.config["trops_root"] = str(trops_root or "").strip()
         self.config["minimax_settings_path"] = str(minimax_settings_path or "").strip()
+        self.config["source_input_dir"] = str(source_input_dir or "").strip()
         core.save_config(self.config, self.config_path)
         self._reload_companies()
         state = self._state()

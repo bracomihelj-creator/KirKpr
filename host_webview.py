@@ -480,6 +480,7 @@ class Handler(BaseHTTPRequestHandler):
                         company_registry_path=str(body.get("company_registry_path") or ""),
                         trops_root=str(body.get("trops_root") or ""),
                         minimax_settings_path=str(body.get("minimax_settings_path") or ""),
+                        source_input_dir=str(body.get("source_input_dir") or ""),
                     ),
                 )
                 return

@@ -435,16 +435,35 @@ class WebviewServiceTests(unittest.TestCase):
         self.assertIn("Končano", state["msg"])
         self.assertFalse(self.svc.working_dirty)
 
+    def test_attachment_picker_prefers_last_output_then_attachments(self) -> None:
+        trops, ddv = self._prepare_company_trops()
+        last_out = self.base / "zadnji_izhod"
+        last_out.mkdir()
+        attachments = ddv / "KIRKPR_Minimax" / "brez_obdobja" / "Priponke_API"
+        self.svc.config["last_output_dir"] = str(last_out)
+        self.assertEqual(str(last_out), self.svc.attachment_picker_initial_dir())
+        del self.svc.config["last_output_dir"]
+        self.assertEqual(str(ddv), self.svc.attachment_picker_initial_dir())
+        attachments.mkdir(parents=True)
+        self.assertEqual(str(attachments), self.svc.attachment_picker_initial_dir())
+
     def test_path_settings_write_only_given_config(self) -> None:
         before = self.config_path.read_text(encoding="utf-8")
+        source_dir = self.base / "vhod_privzeto"
+        source_dir.mkdir()
         self.svc.save_path_settings(
             company_registry_path=str(self.base / "firme.json"),
             trops_root=str(self.base / "trops"),
             minimax_settings_path=str(self.base / "settings.json"),
+            source_input_dir=str(source_dir),
         )
         data = json.loads(self.config_path.read_text(encoding="utf-8"))
         self.assertTrue(data["company_registry_path"].endswith("firme.json"))
         self.assertTrue(data["trops_root"].endswith("trops"))
+        self.assertEqual(str(source_dir), data["source_input_dir"])
+        form = self.svc.path_settings()
+        self.assertEqual(str(source_dir), form["source_input_dir"])
+        self.assertEqual(str(source_dir), self.svc.source_picker_initial_dir())
         # Ne sme posegati v privzeto konfiguracijo projekta.
         project_cfg = Path(r"D:\PISARNA\Python\KirKpr\convert_KIrKpr_to_minimax_config.json")
         if project_cfg.is_file():

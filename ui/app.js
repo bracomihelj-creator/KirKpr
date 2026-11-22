@@ -513,6 +513,7 @@
         $("setRegistry").value = data.company_registry_path || "";
         $("setTrops").value = data.trops_root || "";
         $("setMinimax").value = data.minimax_settings_path || "";
+        if ($("setSourceDir")) $("setSourceDir").value = data.source_input_dir || "";
       });
     }
     return Promise.resolve();
@@ -952,10 +953,17 @@
     post("/api/paths/save", {
       company_registry_path: $("setRegistry").value,
       trops_root: $("setTrops").value,
-      minimax_settings_path: $("setMinimax").value
+      minimax_settings_path: $("setMinimax").value,
+      source_input_dir: $("setSourceDir") ? $("setSourceDir").value : ""
     }).then(function (s) {
       applyState(s);
+      refreshDialogDirs();
       toast(s.msg || "Shranjeno.");
+    }).catch(function (e) { toast(e.message, true); });
+  });
+  if ($("pickSourceDirBtn")) $("pickSourceDirBtn").addEventListener("click", function () {
+    pickFolder("open").then(function (dir) {
+      if (dir && $("setSourceDir")) $("setSourceDir").value = dir;
     }).catch(function (e) { toast(e.message, true); });
   });
   $("themeBtn").addEventListener("click", function () {
@@ -1388,7 +1396,7 @@
   $("apiImportAttBtn").addEventListener("click", function () {
     var id = singleApiId();
     if (!id) return;
-    pickFiles().then(function (paths) {
+    pickFiles("attachments").then(function (paths) {
       if (!paths || !paths.length) return null;
       return runAction("import_attachment_from_folder", { id: id, sources: paths });
     }).then(function (s) {
