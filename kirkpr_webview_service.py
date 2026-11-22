@@ -87,6 +87,7 @@ class KirKprService:
         self.remember_customer = True
         self.remember_supplier = True
         self.working_dirty = False
+        self._boot_reopen_done = False
         self.pending_working_changes: list[str] = []
         self.knjiga_view_mode = "json"
         self.knjiga_records: dict[str, list[dict[str, Any]]] = {"IR": [], "PR": []}
@@ -271,9 +272,37 @@ class KirKprService:
 
     def boot(self) -> dict[str, Any]:
         state = self._state()
+        if not self._boot_reopen_done:
+            self._boot_reopen_done = True
+            if bool(self.config.get("auto_reopen_last_source")) and self.dataset is None:
+                reopened = self._maybe_auto_reopen_last_source()
+                if reopened is not None:
+                    state = reopened
         state["companies"] = [_company_public(c) for c in self.companies]
         state["company_count"] = len(self.companies)
         return state
+
+    def _maybe_auto_reopen_last_source(self) -> dict[str, Any] | None:
+        raw = str(
+            self._profile_config().get("last_source_file") or self.config.get("last_source_file") or ""
+        ).strip()
+        if not raw:
+            return None
+        source = Path(raw)
+        if self._is_projest_vasco_source(source):
+            self._forget_projest_vasco_last_source()
+            state = self._state()
+            state["msg"] = "Zadnji vir je bil Vasco/SQLite — uvoz je v ProJest Studio. Odpri FURS ZIP/JSON."
+            state["vasco_skipped"] = True
+            return state
+        if not source.is_file():
+            return None
+        try:
+            return self.load_source(source)
+        except Exception as exc:
+            state = self._state()
+            state["msg"] = f"Zadnje datoteke ni bilo mogoče odpreti: {exc}"
+            return state
 
     def list_companies(self, search: str = "") -> dict[str, Any]:
         self._reload_companies()
@@ -544,10 +573,40 @@ class KirKprService:
         return state
 
     def open_last_source(self) -> dict[str, Any]:
+        raw = str(
+            self._profile_config().get("last_source_file") or self.config.get("last_source_file") or ""
+        ).strip()
+        if raw and self._is_projest_vasco_source(Path(raw)):
+            self._forget_projest_vasco_last_source()
+            msg = "Zadnji vir je Vasco/Excel SQLite — uvoz je v ProJest Studio. Tu odpri FURS ZIP/JSON/XML/CSV."
+            return {"ok": False, "error": msg, "msg": msg, "vasco_skipped": True}
         source = self._last_source_path()
         if source is None:
             return {"ok": False, "error": "Zadnja datoteka ni shranjena ali ne obstaja več.", "msg": "Zadnja datoteka ni shranjena ali ne obstaja več."}
         return self.load_source(source)
+
+    def _is_projest_vasco_source(self, source: Path | str | None) -> bool:
+        """Vasco Excel/SQLite gre v ProJest — KIR/KPR ga ne bere več."""
+        path = Path(source or "")
+        suffix = path.suffix.casefold()
+        name = path.name.casefold()
+        if suffix in {".xls", ".xlsx", ".xlsm", ".sqlite3", ".sqlite", ".db"}:
+            return True
+        if "kirkpr_excel" in name or name.startswith("if ") or name.startswith("kp"):
+            return True
+        return False
+
+    def _forget_projest_vasco_last_source(self) -> None:
+        profile = self._profile_config()
+        for store in (self.config, profile):
+            for key in ("last_source_file", "last_excel_sqlite"):
+                value = str(store.get(key) or "")
+                if value and self._is_projest_vasco_source(Path(value)):
+                    store[key] = ""
+        try:
+            self._persist_config()
+        except OSError:
+            pass
 
     def _profile_config(self) -> dict[str, Any]:
         if not self.selected_company:

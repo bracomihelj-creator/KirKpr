@@ -240,6 +240,40 @@ class WebviewServiceTests(unittest.TestCase):
         self.assertTrue(opened["has_data"])
         self.assertEqual(str(other_file), str(again.dataset.source_path))
 
+    def test_boot_auto_reopens_last_source_when_enabled(self) -> None:
+        self.svc.load_source(str(self.sample))
+        again = KirKprService(config_path=self.config_path, base_dir=self.base)
+        boot = again.boot()
+        self.assertTrue(boot["has_data"])
+        self.assertEqual(str(self.sample), str(again.dataset.source_path))
+        refresh = again.boot()
+        self.assertTrue(refresh["has_data"])
+
+    def test_boot_skips_auto_reopen_when_disabled(self) -> None:
+        self.svc.load_source(str(self.sample))
+        cfg = json.loads(self.config_path.read_text(encoding="utf-8"))
+        cfg["auto_reopen_last_source"] = False
+        self.config_path.write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        again = KirKprService(config_path=self.config_path, base_dir=self.base)
+        boot = again.boot()
+        self.assertFalse(boot["has_data"])
+        self.assertIsNone(again.dataset)
+
+    def test_boot_skips_vasco_last_source_and_forgets_it(self) -> None:
+        vasco = self.base / "vasco.xlsx"
+        vasco.write_bytes(b"PK\x03\x04fake")
+        cfg = json.loads(self.config_path.read_text(encoding="utf-8"))
+        cfg["last_source_file"] = str(vasco)
+        cfg["auto_reopen_last_source"] = True
+        self.config_path.write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        again = KirKprService(config_path=self.config_path, base_dir=self.base)
+        boot = again.boot()
+        self.assertFalse(boot["has_data"])
+        self.assertTrue(boot.get("vasco_skipped"))
+        self.assertIn("Vasco", boot["msg"])
+        saved = json.loads(self.config_path.read_text(encoding="utf-8"))
+        self.assertEqual("", saved.get("last_source_file") or "")
+
     def test_path_settings_write_only_given_config(self) -> None:
         before = self.config_path.read_text(encoding="utf-8")
         self.svc.save_path_settings(

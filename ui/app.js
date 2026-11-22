@@ -753,6 +753,8 @@
     return api("/api/boot").then(function (s) {
       applyState(s);
       renderCompanies(s.companies || []);
+      if (s.vasco_skipped && (s.msg || s.error)) toast(s.msg || s.error, true);
+      else if (s.has_data && s.msg) toast(s.msg);
       return loadSessions().then(function () { return reloadView(); });
     });
   }
