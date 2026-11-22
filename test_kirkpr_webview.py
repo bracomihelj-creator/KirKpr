@@ -166,6 +166,48 @@ class WebviewServiceTests(unittest.TestCase):
         self.svc.reset_period()
         self.assertEqual(1, self.svc.list_ir()["visible"])
 
+    def _prepare_company_trops(self):
+        trops = self.base / "TROPS"
+        ddv = trops / "07" / "DDV"
+        ddv.mkdir(parents=True)
+        self.svc.config["trops_root"] = str(trops)
+        self.svc.selected_company = {"Zšt": "7", "Kratko ime": "Test d.o.o.", "oddaja DDV": "Mesečni"}
+        return trops, ddv
+
+    def test_dialog_directories_prefer_company_ddv(self) -> None:
+        trops, ddv = self._prepare_company_trops()
+        dirs = self.svc.dialog_directories()
+        self.assertEqual(str(ddv), dirs["open"])
+        self.assertEqual(str(ddv), dirs["save"])
+        boot = self.svc.boot()
+        self.assertEqual(str(ddv), boot["dialog_dirs"]["open"])
+        # dialog helpers must not create Virmani or other folders
+        names = {path.name for path in trops.rglob("*")}
+        self.assertNotIn("Virmani", names)
+
+    def test_dialog_directories_source_input_dir_wins_if_exists(self) -> None:
+        trops, ddv = self._prepare_company_trops()
+        custom = self.base / "vhod"
+        custom.mkdir()
+        self.svc.config["source_input_dir"] = str(custom)
+        dirs = self.svc.dialog_directories()
+        self.assertEqual(str(custom), dirs["open"])
+        self.assertEqual(str(ddv), dirs["save"])
+
+    def test_bridge_dialog_kwargs_sets_directory_only_if_exists(self) -> None:
+        from host_webview import Bridge
+        missing = self.base / "ni_te_mape"
+        self.assertNotIn("directory", Bridge.dialog_kwargs(directory=str(missing)))
+        existing = self.base / "obstaja"
+        existing.mkdir()
+        kw = Bridge.dialog_kwargs(directory=str(existing), file_types=["JSON (*.json)"])
+        self.assertEqual(str(existing), kw["directory"])
+        self.assertEqual(("JSON (*.json)",), kw["file_types"])
+        file_path = existing / "x.txt"
+        file_path.write_text("x", encoding="utf-8")
+        kw = Bridge.dialog_kwargs(directory=str(file_path))
+        self.assertEqual(str(existing), kw["directory"])
+
     def test_path_settings_write_only_given_config(self) -> None:
         before = self.config_path.read_text(encoding="utf-8")
         self.svc.save_path_settings(

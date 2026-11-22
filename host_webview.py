@@ -44,7 +44,39 @@ class NotFound(LookupError):
 class Bridge:
     """Datotečni izbirnik in zapiranje — brez Tk (kot Trops)."""
 
-    def _dialog(self, kind_name: str, file_types: Any = None, directory: bool = False) -> str:
+    @staticmethod
+    def dialog_kwargs(
+        directory: str = "",
+        file_types: Any = None,
+        save_filename: str = "",
+        allow_multiple: bool = False,
+    ) -> Dict[str, Any]:
+        """Parametri za pywebview create_file_dialog; directory je začetna mapa."""
+        kwargs: Dict[str, Any] = {}
+        start = str(directory or "").strip()
+        if start:
+            path = Path(start).expanduser()
+            if path.is_file():
+                path = path.parent
+            if path.is_dir():
+                kwargs["directory"] = str(path)
+        if file_types:
+            kwargs["file_types"] = tuple(file_types) if isinstance(file_types, (list, tuple)) else (file_types,)
+        if save_filename:
+            kwargs["save_filename"] = str(save_filename)
+        if allow_multiple:
+            kwargs["allow_multiple"] = True
+        return kwargs
+
+    def _dialog(
+        self,
+        kind_name: str,
+        file_types: Any = None,
+        *,
+        folder: bool = False,
+        directory: str = "",
+        save_filename: str = "",
+    ) -> str:
         try:
             import webview
         except Exception:
@@ -53,7 +85,7 @@ class Bridge:
         if not wins:
             return ""
         fd = getattr(webview, "FileDialog", None)
-        if directory:
+        if folder or kind_name == "FOLDER":
             kind = getattr(fd, "FOLDER", None) if fd else None
             if kind is None:
                 kind = getattr(webview, "FOLDER_DIALOG", 20)
@@ -61,9 +93,7 @@ class Bridge:
             kind = getattr(fd, kind_name, None) if fd else None
             if kind is None:
                 kind = getattr(webview, "OPEN_DIALOG" if kind_name == "OPEN" else "SAVE_DIALOG", 10)
-        kwargs: Dict[str, Any] = {}
-        if file_types:
-            kwargs["file_types"] = tuple(file_types) if isinstance(file_types, (list, tuple)) else (file_types,)
+        kwargs = self.dialog_kwargs(directory=directory, file_types=file_types, save_filename=save_filename)
         result = wins[0].create_file_dialog(kind, **kwargs)
         if not result:
             return ""
@@ -71,16 +101,17 @@ class Bridge:
             return str(result[0] or "")
         return str(result)
 
-    def pick_file(self, file_types: Any = None) -> str:
+    def pick_file(self, file_types: Any = None, directory: str = "") -> str:
         return self._dialog(
             "OPEN",
             file_types or ("KIR/KPR (*.zip;*.json;*.xml;*.csv)", "Vse (*.*)"),
+            directory=str(directory or ""),
         )
 
-    def pick_folder(self) -> str:
-        return self._dialog("FOLDER", directory=True)
+    def pick_folder(self, directory: str = "") -> str:
+        return self._dialog("FOLDER", folder=True, directory=str(directory or ""))
 
-    def pick_files(self, file_types: Any = None) -> list[str]:
+    def pick_files(self, file_types: Any = None, directory: str = "") -> list[str]:
         try:
             import webview
         except Exception:
@@ -92,9 +123,11 @@ class Bridge:
         kind = getattr(fd, "OPEN", None) if fd else None
         if kind is None:
             kind = getattr(webview, "OPEN_DIALOG", 10)
-        kwargs: Dict[str, Any] = {"allow_multiple": True}
-        if file_types:
-            kwargs["file_types"] = tuple(file_types) if isinstance(file_types, (list, tuple)) else (file_types,)
+        kwargs = self.dialog_kwargs(
+            directory=str(directory or ""),
+            file_types=file_types,
+            allow_multiple=True,
+        )
         result = wins[0].create_file_dialog(kind, **kwargs)
         if not result:
             return []
@@ -102,11 +135,16 @@ class Bridge:
             return [str(path) for path in result if path]
         return [str(result)]
 
-    def pick_settings_file(self) -> str:
-        return self._dialog("OPEN", ("JSON (*.json)", "Vse (*.*)"))
+    def pick_settings_file(self, directory: str = "") -> str:
+        return self._dialog("OPEN", ("JSON (*.json)", "Vse (*.*)"), directory=str(directory or ""))
 
-    def pick_save(self, file_types: Any = None) -> str:
-        return self._dialog("SAVE", file_types or ("Vse (*.*)",))
+    def pick_save(self, file_types: Any = None, directory: str = "", save_filename: str = "") -> str:
+        return self._dialog(
+            "SAVE",
+            file_types or ("Vse (*.*)",),
+            directory=str(directory or ""),
+            save_filename=str(save_filename or ""),
+        )
 
     def close_window(self) -> None:
         try:
@@ -393,6 +431,7 @@ LONG_ACTIONS = {
 def _actions(s: KirKprService) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
     return {
         "refresh": lambda b: s.boot(),
+        "dialog_directories": lambda b: {"ok": True, **s.dialog_directories()},
         "shift_period": lambda b: s.shift_period(-1 if int(b.get("delta") or 1) < 0 else 1),
         "reset_period": lambda b: s.reset_period(),
         "load_source": lambda b: s.load_source(str(b.get("path") or "")),

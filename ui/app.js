@@ -49,11 +49,32 @@
 
   function bridge() { return window.pywebview && window.pywebview.api; }
 
+  function dialogDir(kind) {
+    var dirs = (state.boot && state.boot.dialog_dirs) || {};
+    return dirs[kind] || dirs.open || "";
+  }
+
+  function refreshDialogDirs() {
+    return act("dialog_directories").then(function (dirs) {
+      if (!state.boot) state.boot = {};
+      if (dirs && dirs.ok !== false) {
+        state.boot.dialog_dirs = {
+          open: dirs.open || "",
+          save: dirs.save || "",
+          attachments: dirs.attachments || ""
+        };
+      }
+      return dialogDir("open");
+    }).catch(function () { return dialogDir("open"); });
+  }
+
   function pickFile() {
     var b = bridge();
     var kinds = ["KIR/KPR (*.zip;*.json;*.xml;*.csv)", "Vse (*.*)"];
-    if (b && b.pick_file) return b.pick_file(kinds).then(function (p) { return p || ""; });
-    return Promise.resolve("");
+    if (!(b && b.pick_file)) return Promise.resolve("");
+    return refreshDialogDirs().then(function () {
+      return b.pick_file(kinds, dialogDir("open"));
+    }).then(function (p) { return p || ""; });
   }
 
   function selectedIds() {
@@ -1092,22 +1113,31 @@
     { key: "detail", label: "Rezultat / napaka" }
   ];
 
-  function pickFolder() {
+  function pickFolder(kind) {
     var b = bridge();
-    if (b && b.pick_folder) return b.pick_folder().then(function (p) { return p || ""; });
-    return Promise.resolve("");
+    if (!(b && b.pick_folder)) return Promise.resolve("");
+    return refreshDialogDirs().then(function () {
+      return b.pick_folder(dialogDir(kind || "save"));
+    }).then(function (p) { return p || ""; });
   }
 
-  function pickFiles() {
+  function pickFiles(kind) {
     var b = bridge();
+    var dirKind = kind || "open";
     if (b && b.pick_files) {
-      return b.pick_files(["Vse (*.*)"]).then(function (p) {
+      return refreshDialogDirs().then(function () {
+        return b.pick_files(["Vse (*.*)"], dialogDir(dirKind));
+      }).then(function (p) {
         if (!p) return [];
         if (Array.isArray(p)) return p.filter(Boolean);
         return [p];
       });
     }
-    if (b && b.pick_file) return b.pick_file(["Vse (*.*)"]).then(function (p) { return p ? [p] : []; });
+    if (b && b.pick_file) {
+      return refreshDialogDirs().then(function () {
+        return b.pick_file(["Vse (*.*)"], dialogDir(dirKind));
+      }).then(function (p) { return p ? [p] : []; });
+    }
     return Promise.resolve([]);
   }
 
@@ -1239,7 +1269,7 @@
   $("apiAttachBtn").addEventListener("click", function () {
     var id = singleApiId();
     if (!id) return;
-    pickFolder().then(function (dir) {
+    pickFolder("attachments").then(function (dir) {
       if (!dir) return null;
       return runAction("download_invoice_attachments", { id: id, out_dir: dir });
     }).then(function (s) {

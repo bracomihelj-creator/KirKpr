@@ -266,6 +266,7 @@ class KirKprService:
                 "minimax_settings": str(self.config.get("minimax_settings_path") or ""),
                 "last_source": str(self.config.get("last_source_file") or ""),
             },
+            "dialog_dirs": self.dialog_directories(),
         }
 
     def boot(self) -> dict[str, Any]:
@@ -533,6 +534,83 @@ class KirKprService:
         if not self.selected_company:
             return self.config
         return core.company_profile(self.config, registry.company_key(self.selected_company))
+
+    def _existing_dir(self, *candidates: Any) -> Path | None:
+        for raw in candidates:
+            if not raw:
+                continue
+            path = Path(str(raw)).expanduser()
+            if path.is_file():
+                path = path.parent
+            if path.is_dir():
+                return path
+        return None
+
+    def _company_ddv_root(self) -> Path | None:
+        """Mapa DDV izbrane firme, brez ustvarjanja map na disku."""
+        if not self.selected_company:
+            return None
+        trops = str(self.config.get("trops_root") or "").strip()
+        if not trops:
+            return None
+        zst = registry.company_zst(self.selected_company)
+        if not zst:
+            return None
+        return registry.resolve_trops_root(trops) / str(int(zst)).zfill(2) / "DDV"
+
+    def _company_attachments_root(self) -> Path | None:
+        """Pot Priponke_API, brez ustvarjanja map na disku."""
+        ddv = self._company_ddv_root()
+        if ddv is None:
+            return None
+        start, end = self._filter_iso_bounds()
+        if start and end:
+            period = registry.safe_name(f"{start}_{end}", "brez_obdobja")
+        elif start or end:
+            period = registry.safe_name(start or end, "brez_obdobja")
+        else:
+            period = "brez_obdobja"
+        return ddv / "KIRKPR_Minimax" / period / "Priponke_API"
+
+    def source_picker_initial_dir(self) -> str:
+        """Privzeta mapa za odpiranje KIR/KPR (nastavitev → profil → DDV firme)."""
+        profile = self._profile_config()
+        found = self._existing_dir(
+            self.config.get("source_input_dir"),
+            profile.get("last_input_dir"),
+            self._company_ddv_root(),
+            self.config.get("last_input_dir"),
+        )
+        return str(found or Path.cwd())
+
+    def save_picker_initial_dir(self) -> str:
+        """Privzeta mapa za shranjevanje / izvoz (DDV firme → zadnji izvoz)."""
+        profile = self._profile_config()
+        found = self._existing_dir(
+            self._company_ddv_root(),
+            profile.get("last_output_dir"),
+            self.config.get("last_output_dir"),
+            self.dataset.source_path.parent if self.dataset else "",
+        )
+        return str(found or Path.cwd())
+
+    def attachment_picker_initial_dir(self) -> str:
+        """Privzeta mapa za izbiro mape priponk."""
+        profile = self._profile_config()
+        found = self._existing_dir(
+            profile.get("last_output_dir"),
+            self.config.get("last_output_dir"),
+            self._company_attachments_root(),
+            self._company_ddv_root(),
+        )
+        return str(found or self.save_picker_initial_dir())
+
+    def dialog_directories(self) -> dict[str, str]:
+        return {
+            "open": self.source_picker_initial_dir(),
+            "save": self.save_picker_initial_dir(),
+            "attachments": self.attachment_picker_initial_dir(),
+        }
 
     def _mark_working_dirty(self, detail: str = "") -> None:
         self.working_dirty = True
