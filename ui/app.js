@@ -1095,6 +1095,37 @@
       else if (name === "last") runAction("open_last_source", {}).then(function (s) { if (s) { applyState(s); reloadView(); } }).catch(function (e) { toast(e.message, true); });
       else if (name === "save-accounts") runAction("save_accounts", {}).then(function (s) { if (s) applyState(s); }).catch(function (e) { toast(e.message, true); });
       else if (name === "save-working") act("save_working_copy").then(function (s) { if (s.ok === false) throw new Error(s.msg || s.error); applyState(s); copySavedPath(s); }).catch(function (e) { toast(e.message, true); });
+      else if (name === "load-minimax") {
+        var runLoad = function (dirtyAction) {
+          return act("load_data_from_minimax", { dirty_action: dirtyAction || "" }).then(function (s) {
+            if (!s) return s;
+            if (s.ok === false && !s.needs_connect && !s.needs_dirty_confirm) throw new Error(s.msg || s.error || "Prenos ni uspel.");
+            if (s.needs_connect) {
+              return act("connect_minimax_api").then(function () {
+                return runLoad(dirtyAction || "");
+              });
+            }
+            if (s.needs_dirty_confirm) {
+              var saveFirst = window.confirm(
+                "Trenutni podatki imajo neshranjene spremembe.\n\nV redu = shrani delovno kopijo, nato naloži iz Minimaxa.\nPrekliči = druga izbira."
+              );
+              if (saveFirst) return runLoad("save");
+              var discard = window.confirm(
+                "Zavržem neshranjene spremembe in naložim podatke iz Minimaxa?\nPrekliči = prekini."
+              );
+              if (discard) return runLoad("discard");
+              return null;
+            }
+            applyState(s);
+            reloadView();
+            if (s.saved_path) copySavedPath(s);
+            if (s.done_prompt) window.alert(s.done_prompt);
+            else if (s.msg) toast(s.msg);
+            return s;
+          });
+        };
+        runLoad("").catch(function (e) { toast(e.message, true); });
+      }
       else if (name === "export-minimax") {
         var runExport = function (dir) {
           return runAction("export_minimax", { out_dir: dir || "" }, true).then(function (s) {

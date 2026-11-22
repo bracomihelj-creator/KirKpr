@@ -564,6 +564,7 @@ def _actions(s: KirKprService) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
             source_pdf=str(b.get("source_pdf") or ""),
         ),
         "export_minimax": lambda b: s.export_minimax(str(b.get("out_dir") or "")),
+        "load_data_from_minimax": lambda b: s.load_data_from_minimax(str(b.get("dirty_action") or "")),
         "open_last_output_dir": lambda b: s.open_last_output_dir(),
         "open_export_path": lambda b: s.open_export_path(str(b.get("path") or "")),
         "set_knjiga_mode": lambda b: s.set_knjiga_mode(str(b.get("mode") or "json")),

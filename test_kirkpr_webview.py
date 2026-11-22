@@ -2,9 +2,11 @@
 """Kadenski testi za WebView2 most (brez zagona GUI in brez vpisa v pravo konfiguracijo)."""
 from __future__ import annotations
 
+import copy
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 import kirkpr_minimax_core as core
@@ -363,6 +365,75 @@ class WebviewServiceTests(unittest.TestCase):
         self.assertEqual(archive.parent, self.svc.last_output_folder())
         # must stay inside the temp folder
         self.assertEqual(out, archive.parent.parent)
+
+    def _minimax_company(self):
+        return {"Zšt": "7", "Kratko ime": "Test d.o.o.", "Org_ID": "99999", "oddaja DDV": "Mesečni"}
+
+    def test_load_data_from_minimax_requires_company_and_org(self) -> None:
+        with self.assertRaises(core.KirkprError):
+            self.svc.load_data_from_minimax()
+        self.svc.selected_company = {"Zšt": "7", "Kratko ime": "Test d.o.o."}
+        with self.assertRaises(core.KirkprError) as ctx:
+            self.svc.load_data_from_minimax()
+        self.assertIn("Org_ID", str(ctx.exception))
+
+    def test_load_data_from_minimax_asks_connect_and_dirty_without_calling_api(self) -> None:
+        company = self._minimax_company()
+        self.svc.selected_company = company
+        preview = self.svc.load_data_from_minimax()
+        self.assertTrue(preview.get("needs_connect"))
+        self.assertFalse(preview.get("has_data", False))
+
+        class Boom:
+            organisation_id = "99999"
+            def authenticate(self):
+                raise AssertionError("API se ne sme klicati pred potrditvijo umazanih sprememb.")
+            def journal_books(self, **kwargs):
+                raise AssertionError("journal_books se ne sme klicati")
+            def invoice_book(self, *args, **kwargs):
+                raise AssertionError("invoice_book se ne sme klicati")
+
+        self.svc.minimax_client = Boom()
+        self.svc.load_source(str(self.sample))
+        self.svc.working_dirty = True
+        dirty = self.svc.load_data_from_minimax()
+        self.assertTrue(dirty.get("needs_dirty_confirm"))
+        self.assertTrue(self.svc.working_dirty)
+        self.assertTrue(self.svc.dataset is not None)
+
+    def test_load_data_from_minimax_imports_into_session_with_fake_client(self) -> None:
+        company = self._minimax_company()
+        self.svc.selected_company = company
+        self.svc.period_from = __import__("datetime").date(2026, 4, 1)
+        self.svc.period_to = __import__("datetime").date(2026, 4, 30)
+        template = core.load_dataset(self.sample)
+
+        class Fake:
+            organisation_id = "99999"
+            def authenticate(self):
+                self.ok = True
+            def journal_books(self, **kwargs):
+                return {"IR": [{"id": 1}], "PR": [{"id": 2}]}
+            def invoice_book(self, *args, **kwargs):
+                return []
+
+        def fake_hybrid(**kwargs):
+            return copy.deepcopy(template), {"IR": "journals", "PR": "journals"}
+
+        def fake_filter(rows, book, date_from, date_to):
+            return list(rows or [])
+
+        def fake_row(row, book):
+            return {"id": row.get("id"), "book": book}
+
+        self.svc.minimax_client = Fake()
+        with patch("kirkpr_minimax_dataset.filter_journals_by_vat_period", side_effect=fake_filter), patch("kirkpr_minimax_dataset.journal_as_book_row", side_effect=fake_row), patch("kirkpr_minimax_dataset.dataset_from_minimax_hybrid", side_effect=fake_hybrid):
+            state = self.svc.load_data_from_minimax()
+        self.assertTrue(state["has_data"])
+        self.assertFalse(state.get("needs_connect"))
+        self.assertEqual(len(self.svc.dataset.kir), len(template.kir))
+        self.assertIn("Končano", state["msg"])
+        self.assertFalse(self.svc.working_dirty)
 
     def test_path_settings_write_only_given_config(self) -> None:
         before = self.config_path.read_text(encoding="utf-8")

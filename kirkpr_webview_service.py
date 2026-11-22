@@ -11,7 +11,7 @@ import shutil
 import json
 import re
 import tempfile
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any, Mapping
@@ -1226,6 +1226,241 @@ class KirKprService:
             f"({result.issued_count} IR / {result.received_count} PR). {validation}."
         )
         return self._with_saved_path(state, result.archive, export_paths)
+
+    def _clear_dataset_for_minimax_reload(self) -> None:
+        """Počisti stare IR/PR pred novim prenosom iz Minimaxa."""
+        self.dataset = None
+        self.source_dataset = None
+        self.working_dirty = False
+        self.pending_working_changes.clear()
+        self.knjiga_records = {"IR": [], "PR": []}
+        self.knjiga_period = None
+
+    def _fetch_dataset_from_minimax(
+        self,
+        *,
+        client: Any,
+        org_id: str,
+        name: str,
+        tax: str,
+        date_from: str,
+        date_to: str,
+    ) -> dict[str, Any]:
+        """Prenos IR/PR iz Minimaxa prek obstoječih funkcij. Ne oddaja ničesar."""
+        import kirkpr_minimax_dataset as minimax_dataset
+
+        client.authenticate()
+        start = gui_helpers.parse_iso_date(date_from) or date.today()
+        end = gui_helpers.parse_iso_date(date_to) or date.today()
+        fetch_from = (start - timedelta(days=45)).isoformat()
+        fetch_to = (end + timedelta(days=45)).isoformat()
+        ir_journals: list[Any] = []
+        pr_journals: list[Any] = []
+        journals_blocked = False
+        journals_error = ""
+        try:
+            books = client.journal_books(
+                date_from=fetch_from,
+                date_to=fetch_to,
+                types=("IR", "PR"),
+                progress=None,
+            )
+            ir_journals = list(books.get("IR") or [])
+            pr_journals = list(books.get("PR") or [])
+        except Exception as exc:
+            journals_blocked = True
+            journals_error = str(exc)
+
+        ir_in = minimax_dataset.filter_journals_by_vat_period(ir_journals, "IR", date_from, date_to)
+        pr_in = minimax_dataset.filter_journals_by_vat_period(pr_journals, "PR", date_from, date_to)
+        ir_rows: list[Any] = []
+        pr_rows: list[Any] = []
+        if journals_blocked or not ir_in:
+            try:
+                ir_rows = client.invoice_book("IR", date_from=date_from, date_to=date_to)
+            except Exception:
+                ir_rows = []
+        if journals_blocked or not pr_in:
+            try:
+                pr_rows = client.invoice_book("PR", date_from=date_from, date_to=date_to)
+            except Exception:
+                pr_rows = []
+        if journals_blocked and not ir_rows and not pr_rows:
+            raise minimax_api.MinimaxApiError(
+                "Minimax ne dovoli branja temeljnic (»Pregled temeljnic«), "
+                "moduli IR/PR pa tudi niso vrnili podatkov.\n\n"
+                f"{journals_error}\n\n"
+                "V Minimaxu preveri pravice API uporabnika za to firmo "
+                "(temeljnice in/ali knjige IR/PR)."
+            )
+        prefer = "invoices" if journals_blocked else "journals"
+        dataset, sources = minimax_dataset.dataset_from_minimax_hybrid(
+            ir_invoice_records=ir_rows,
+            pr_invoice_records=pr_rows,
+            ir_journals=ir_journals,
+            pr_journals=pr_journals,
+            date_from=date_from,
+            date_to=date_to,
+            company_name=name,
+            tax_number=tax,
+            org_id=str(org_id),
+            prefer=prefer,
+        )
+        if sources.get("IR") == "invoices":
+            ir_raw: list[Any] = list(ir_rows)
+        else:
+            ir_raw = [minimax_dataset.journal_as_book_row(row, "IR") for row in ir_in]
+        if sources.get("PR") == "invoices":
+            pr_raw = list(pr_rows)
+        else:
+            pr_raw = [minimax_dataset.journal_as_book_row(row, "PR") for row in pr_in]
+        kind = "mixed"
+        if sources.get("IR") == "invoices" and sources.get("PR") == "invoices":
+            kind = "invoices"
+        elif sources.get("IR") == "journals" and sources.get("PR") == "journals":
+            kind = "journals"
+        elif sources.get("IR") == "empty" and sources.get("PR") == "empty":
+            kind = "empty"
+        return {
+            "dataset": dataset,
+            "ir_raw": ir_raw,
+            "pr_raw": pr_raw,
+            "period": (date_from, date_to),
+            "source_kind": kind,
+            "sources": sources,
+            "journals_blocked": journals_blocked,
+            "journals_error": journals_error,
+        }
+
+    def load_data_from_minimax(self, dirty_action: str = "") -> dict[str, Any]:
+        """Uvozi IR/PR iz Minimaxa v sejo. Ne pošilja podatkov v Minimax."""
+        if not self.selected_company:
+            raise core.KirkprError("Najprej izberi podjetje z Org_ID.")
+        org_id = registry.company_org_id(self.selected_company)
+        if not org_id:
+            raise core.KirkprError("Pri podjetju manjka Org_ID.")
+        name = registry.company_name(self.selected_company)
+        tax = registry.company_tax_number(self.selected_company)
+        date_from, date_to = self._filter_iso_bounds()
+        if not date_from or not date_to:
+            today = date.today().isoformat()
+            date_from = date_from or today
+            date_to = date_to or date_from
+        action = str(dirty_action or "").strip().lower()
+        if self.working_dirty and action not in {"save", "discard"}:
+            prompt = (
+                "Trenutni podatki imajo neshranjene spremembe.\n"
+                "DA = shrani delovno kopijo, nato naloži iz Minimaxa\n"
+                "NE = zavrzi in naloži\n"
+                "Prekliči = prekini"
+            )
+            return {
+                "ok": False,
+                "needs_dirty_confirm": True,
+                "error": "Neshranjene spremembe",
+                "prompt": prompt,
+                "msg": prompt,
+            }
+        client = self.minimax_client
+        if client is None or not getattr(client, "organisation_id", None) or str(client.organisation_id) != str(org_id):
+            return {
+                "ok": False,
+                "needs_connect": True,
+                "error": "Najprej povežite Minimax API za to podjetje.",
+                "msg": "Najprej povežite Minimax API za to podjetje.",
+            }
+        if action == "save":
+            saved = self.save_working_copy(quiet=False)
+            if saved is None:
+                raise core.KirkprError("Delovne kopije ni bilo mogoče shraniti.")
+        self._clear_dataset_for_minimax_reload()
+        try:
+            result = self._fetch_dataset_from_minimax(
+                client=client,
+                org_id=str(org_id),
+                name=name,
+                tax=tax,
+                date_from=date_from,
+                date_to=date_to,
+            )
+        except Exception as exc:
+            raise core.KirkprError(f"Prenos ni uspel:\n\n{exc}") from exc
+        dataset = result["dataset"]
+        kind = str(result.get("source_kind") or "mixed")
+        sources = result.get("sources") or {}
+        labels = {"invoices": "knjiga", "journals": "temeljnice", "empty": "—"}
+        if kind == "journals":
+            kind_label = "temeljnice IR/PR"
+        elif kind == "invoices":
+            kind_label = "knjiga IR/PR"
+        elif kind == "mixed":
+            kind_label = f"IR {labels.get(str(sources.get('IR') or ''), sources.get('IR'))} / PR {labels.get(str(sources.get('PR') or ''), sources.get('PR'))}"
+        else:
+            kind_label = "brez podatkov"
+        self.source_dataset = copy.deepcopy(dataset)
+        try:
+            core.apply_saved_accounts(dataset, self._profile_config())
+        except Exception:
+            pass
+        self.dataset = dataset
+        self.working_dirty = False
+        self.pending_working_changes.clear()
+        start = gui_helpers.parse_iso_date(date_from)
+        end = gui_helpers.parse_iso_date(date_to)
+        if start and end:
+            self.period_from, self.period_to = start, end
+            self.period_label = gui_helpers.period_label_for_range(start, end)
+        else:
+            self._set_period_from_dataset()
+        self.knjiga_records = {
+            "IR": list(result.get("ir_raw") or []),
+            "PR": list(result.get("pr_raw") or []),
+        }
+        self.knjiga_period = tuple(result.get("period") or (date_from, date_to))
+        self.knjiga_view_mode = "json"
+        saved_path = None
+        try:
+            saved_wc = self.save_working_copy(quiet=True)
+            if saved_wc is not None:
+                saved_path = saved_wc
+            else:
+                self._remember_current_session(title="", use_selected_id=False)
+        except Exception:
+            try:
+                self._remember_current_session(title="", use_selected_id=False)
+            except Exception:
+                pass
+        note = ""
+        if result.get("journals_blocked"):
+            note = (
+                " Opomba: Minimax ni dovolil branja temeljnic "
+                "(»Pregled temeljnic«) — uporabljen je modul knjige IR/PR."
+            )
+        done_msg = (
+            f"Končano: {len(dataset.kir)} IR, {len(dataset.kpr)} PR "
+            f"({kind_label}, {date_from}–{date_to})."
+        )
+        state = self._state()
+        state["msg"] = done_msg + note
+        state["done_prompt"] = (
+            f"Prenos je končan.\n\n"
+            f"Vir: {kind_label}\n"
+            f"IR: {len(dataset.kir)}\n"
+            f"PR: {len(dataset.kpr)}\n"
+            f"Obdobje: {date_from} – {date_to}\n"
+            f"Podjetje: {name} (Org {org_id})"
+            f"{note}"
+        )
+        state["minimax_load"] = {
+            "kind": kind,
+            "kind_label": kind_label,
+            "ir": len(dataset.kir),
+            "pr": len(dataset.kpr),
+            "journals_blocked": bool(result.get("journals_blocked")),
+        }
+        if saved_path is not None:
+            return self._with_saved_path(state, saved_path)
+        return state
 
     def _with_saved_path(self, state: dict[str, Any], *candidates: Any) -> dict[str, Any]:
         paths: list[str] = []
