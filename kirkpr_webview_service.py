@@ -349,9 +349,28 @@ class KirKprService:
                 self.selected_company = match
         self.dataset = dataset
         self._set_period_from_dataset()
+        self._remember_loaded_source(dataset.source_path)
         state = self._state()
         state["msg"] = f"Naloženo: {dataset.source_path.name} ({len(dataset.kir)} IR, {len(dataset.kpr)} PR)."
         return state
+
+    def _remember_loaded_source(self, source: Path) -> None:
+        path = str(Path(source).expanduser())
+        parent = str(Path(path).parent)
+        self.config["last_source_file"] = path
+        self.config["last_input_dir"] = parent
+        profile = self._profile_config()
+        profile["last_source_file"] = path
+        profile["last_input_dir"] = parent
+        self._persist_config()
+
+    def _last_source_path(self) -> Path | None:
+        profile = self._profile_config()
+        for raw in (profile.get("last_source_file"), self.config.get("last_source_file")):
+            path = str(raw or "").strip()
+            if path and Path(path).is_file():
+                return Path(path)
+        return None
 
     def _haystack_matches(self, tokens: list[str], chunks: list[Any]) -> bool:
         if not tokens:
@@ -525,10 +544,10 @@ class KirKprService:
         return state
 
     def open_last_source(self) -> dict[str, Any]:
-        path = str(self.config.get("last_source_file") or "").strip()
-        if not path or not Path(path).is_file():
+        source = self._last_source_path()
+        if source is None:
             return {"ok": False, "error": "Zadnja datoteka ni shranjena ali ne obstaja več.", "msg": "Zadnja datoteka ni shranjena ali ne obstaja več."}
-        return self.load_source(path)
+        return self.load_source(source)
 
     def _profile_config(self) -> dict[str, Any]:
         if not self.selected_company:

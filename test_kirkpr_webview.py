@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 import kirkpr_minimax_core as core
+import kirkpr_company_registry as registry
 from kirkpr_webview_service import APP_VERSION, KirKprService
 
 
@@ -207,6 +208,37 @@ class WebviewServiceTests(unittest.TestCase):
         file_path.write_text("x", encoding="utf-8")
         kw = Bridge.dialog_kwargs(directory=str(file_path))
         self.assertEqual(str(existing), kw["directory"])
+
+    def test_load_source_remembers_file_in_temp_config(self) -> None:
+        state = self.svc.load_source(str(self.sample))
+        self.assertTrue(state["has_data"])
+        self.assertEqual(str(self.sample), self.svc.config["last_source_file"])
+        self.assertEqual(str(self.sample.parent), self.svc.config["last_input_dir"])
+        saved = json.loads(self.config_path.read_text(encoding="utf-8"))
+        self.assertEqual(str(self.sample), saved["last_source_file"])
+        self.assertEqual(str(self.sample.parent), saved["last_input_dir"])
+
+    def test_load_source_remembers_file_per_company_profile(self) -> None:
+        other = self.base / "druga_mapa"
+        other.mkdir()
+        other_file = other / "druga.json"
+        other_file.write_text(self.sample.read_text(encoding="utf-8"), encoding="utf-8")
+        company = {"Zšt": "7", "Kratko ime": "Test d.o.o.", "oddaja DDV": "Mesečni"}
+        self.svc.companies = [company]
+        self.svc.selected_company = company
+        self.svc.load_source(str(other_file))
+        saved = json.loads(self.config_path.read_text(encoding="utf-8"))
+        key = registry.company_key(company)
+        profile = saved["company_profiles"][key]
+        self.assertEqual(str(other_file), profile["last_source_file"])
+        self.assertEqual(str(other), profile["last_input_dir"])
+        self.assertEqual(str(other_file), saved["last_source_file"])
+        again = KirKprService(config_path=self.config_path, base_dir=self.base)
+        again.companies = [company]
+        again.selected_company = company
+        opened = again.open_last_source()
+        self.assertTrue(opened["has_data"])
+        self.assertEqual(str(other_file), str(again.dataset.source_path))
 
     def test_path_settings_write_only_given_config(self) -> None:
         before = self.config_path.read_text(encoding="utf-8")
