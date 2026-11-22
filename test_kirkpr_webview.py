@@ -321,6 +321,34 @@ class WebviewServiceTests(unittest.TestCase):
             if previous is not None:
                 Bridge.copy_text(previous)
 
+    def test_last_output_folder_ignores_last_source(self) -> None:
+        source_dir = self.base / "vir"
+        export_dir = self.base / "izhod"
+        source_dir.mkdir()
+        export_dir.mkdir()
+        self.svc.config["last_source_file"] = str(source_dir / "vhod.json")
+        self.svc.config["last_input_dir"] = str(source_dir)
+        self.assertIsNone(self.svc.last_output_folder())
+        state = self.svc._state()
+        self.assertEqual("", state["paths"]["last_output_dir"])
+        self.svc.config["last_output_dir"] = str(export_dir)
+        self.svc.config["last_export_dir"] = str(export_dir)
+        self.assertEqual(export_dir, self.svc.last_output_folder())
+        state = self.svc._state()
+        self.assertEqual(str(export_dir), state["paths"]["last_output_dir"])
+        self.assertEqual(str(export_dir), state["paths"]["last_export_dir"])
+
+    def test_export_remembers_last_export_dir_in_temp(self) -> None:
+        self.svc.load_source(str(self.sample))
+        out = self.base / "izvoz_ddvo"
+        out.mkdir()
+        state = self.svc.export_ddvo("report", out_dir=str(out))
+        self.assertEqual(out, self.svc.last_output_folder())
+        saved = json.loads(self.config_path.read_text(encoding="utf-8"))
+        self.assertEqual(str(out), saved.get("last_export_dir"))
+        self.assertEqual(str(out), saved.get("last_output_dir"))
+        self.assertEqual(str(out), state["paths"]["last_export_dir"])
+
     def test_path_settings_write_only_given_config(self) -> None:
         before = self.config_path.read_text(encoding="utf-8")
         self.svc.save_path_settings(

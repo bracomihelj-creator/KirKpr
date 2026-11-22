@@ -563,6 +563,7 @@ def _actions(s: KirKprService) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
             out_dir=str(b.get("out_dir") or ""),
             source_pdf=str(b.get("source_pdf") or ""),
         ),
+        "open_last_output_dir": lambda b: s.open_last_output_dir(),
         "open_export_path": lambda b: s.open_export_path(str(b.get("path") or "")),
         "set_knjiga_mode": lambda b: s.set_knjiga_mode(str(b.get("mode") or "json")),
         "refresh_knjige_from_api": lambda b: s.refresh_knjige_from_api(),

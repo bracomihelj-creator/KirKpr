@@ -712,6 +712,11 @@
     return s;
   }
 
+  function lastOutputDir() {
+    var paths = (state.boot && state.boot.paths) || {};
+    return state.lastExportDir || paths.last_export_dir || paths.last_output_dir || "";
+  }
+
   function rememberExport(s) {
     var paths = (s && (s.export_paths || s.virman)) || {};
     var first = paths.pdf || paths.xml || paths.report || paths.virman || (s.virman && (s.virman.pdf || s.virman.virman)) || "";
@@ -740,7 +745,7 @@
   }
 
   function exportDdvo(kind) {
-    return runAction("export_ddvo", { kind: kind }).then(function () { reloadView(); }).catch(function (e) { toast(e.message, true); });
+    return runAction("export_ddvo", { kind: kind }, true).then(function () { reloadView(); }).catch(function (e) { toast(e.message, true); });
   }
 
   function refreshVirmanQuote() {
@@ -1008,7 +1013,7 @@
     runAction("preview_ddvo", { open_file: true }).catch(function (e) { toast(e.message, true); });
   });
   $("ddvoOpenBtn").addEventListener("click", function () {
-    var path = state.lastExportDir || state.lastExportPath;
+    var path = lastOutputDir();
     if (!path) { toast("Najprej izvozite DDV-O.", true); return; }
     act("open_export_path", { path: path }).then(function (s) {
       if (s && s.ok === false) throw new Error(s.msg || s.error);
@@ -1026,7 +1031,7 @@
       konto62: $("konto62").value,
       payer_iban: $("payerIban").value,
       execution_date: $("virmanDate").value
-    }).then(function () { reloadView(); }).catch(function (e) { toast(e.message, true); });
+    }, true).then(function () { reloadView(); }).catch(function (e) { toast(e.message, true); });
   });
 
 
@@ -1095,9 +1100,9 @@
       else if (name === "settings") setView("settings");
       else if (name === "email") setView("email");
       else if (name === "export-dir") {
-        var path = state.lastExportDir || (state.boot && state.boot.paths && state.boot.paths.last_source) || "";
+        var path = lastOutputDir();
         if (!path) { toast("Ni shranjene izhodne mape.", true); return; }
-        act("open_export_path", { path: path }).catch(function (e) { toast(e.message, true); });
+        act("open_last_output_dir").catch(function (e) { toast(e.message, true); });
       }
       else if (name === "log") {
         api("/api/log").then(function (data) {

@@ -266,6 +266,8 @@ class KirKprService:
                 "trops_root": str(self.config.get("trops_root") or ""),
                 "minimax_settings": str(self.config.get("minimax_settings_path") or ""),
                 "last_source": str(self.config.get("last_source_file") or ""),
+                "last_output_dir": str(self.last_output_folder() or ""),
+                "last_export_dir": str(self._existing_dir(self._profile_config().get("last_export_dir"), self.config.get("last_export_dir")) or ""),
             },
             "dialog_dirs": self.dialog_directories(),
         }
@@ -1152,11 +1154,31 @@ class KirKprService:
         return fallback
 
     def _remember_output_dir(self, folder: Path, action: str, detail: str) -> None:
-        self.config["last_output_dir"] = str(folder)
-        self._profile_config()["last_output_dir"] = str(folder)
+        path = str(folder)
+        self.config["last_output_dir"] = path
+        self.config["last_export_dir"] = path
+        profile = self._profile_config()
+        profile["last_output_dir"] = path
+        profile["last_export_dir"] = path
         self.config["last_action"] = action
         self.config["last_action_detail"] = detail
         self._persist_config()
+
+    def last_output_folder(self) -> Path | None:
+        """Zadnja izhodna mapa (izvoz), nikoli mapa vira."""
+        profile = self._profile_config()
+        return self._existing_dir(
+            profile.get("last_export_dir"),
+            self.config.get("last_export_dir"),
+            profile.get("last_output_dir"),
+            self.config.get("last_output_dir"),
+        )
+
+    def open_last_output_dir(self) -> dict[str, Any]:
+        folder = self.last_output_folder()
+        if folder is None:
+            raise core.KirkprError("Ni shranjene izhodne mape.")
+        return self.open_export_path(str(folder))
 
     def _with_saved_path(self, state: dict[str, Any], *candidates: Any) -> dict[str, Any]:
         paths: list[str] = []
