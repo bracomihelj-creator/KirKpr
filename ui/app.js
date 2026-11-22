@@ -643,10 +643,8 @@
           post("/api/vat-base", { field: inp.getAttribute("data-name"), value: inp.value }).then(function (res) {
             if (res.ok === false) throw new Error(res.msg || res.error);
             var text = res.base || "";
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-              navigator.clipboard.writeText(text).catch(function () {});
-            }
-            toast((res.msg || "") + "  V odložišču: " + text);
+            if (copyText(text)) toast((res.msg || "") + "  V odložišču: " + text);
+            else toast(res.msg || text);
           }).catch(function (e) { toast(e.message, true); });
         });
       });
@@ -679,6 +677,41 @@
   }
 
 
+  function copyText(text) {
+    var value = String(text || "");
+    if (!value) return false;
+    var b = bridge();
+    if (b && b.copy_text) {
+      try { if (b.copy_text(value)) return true; } catch (e) {}
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(value).catch(function () {});
+      return true;
+    }
+    return false;
+  }
+
+  function clipboardText() {
+    var b = bridge();
+    if (b && b.get_text) {
+      try { return String(b.get_text() || ""); } catch (e) {}
+    }
+    return "";
+  }
+
+  function copySavedPath(s) {
+    if (!s) return s;
+    var path = s.saved_path || s.summary_path || s.working_copy || "";
+    if (!path && s.files && s.files.length === 1) path = s.files[0];
+    if (!path && s.export_paths) {
+      var ep = s.export_paths;
+      path = ep.pdf || ep.xml || ep.report || ep.virman || ep.zip || "";
+    }
+    if (!path && s.virman) path = s.virman.virman || s.virman.pdf || "";
+    if (path && copyText(path)) toast("Pot kopirana");
+    return s;
+  }
+
   function rememberExport(s) {
     var paths = (s && (s.export_paths || s.virman)) || {};
     var first = paths.pdf || paths.xml || paths.report || paths.virman || (s.virman && (s.virman.pdf || s.virman.virman)) || "";
@@ -698,6 +731,7 @@
       if (s && (s.version || s.has_data !== undefined)) applyState(s);
       else if (s && s.msg) toast(s.msg);
       rememberExport(s);
+      copySavedPath(s);
       if (openWhenDone && state.lastExportPath) {
         return act("open_export_path", { path: state.lastExportPath }).then(function () { return s; });
       }
@@ -856,6 +890,31 @@
     act("save_working_copy").then(function (s) {
       if (s.ok === false) throw new Error(s.msg || s.error);
       applyState(s);
+      copySavedPath(s);
+    }).catch(function (e) { toast(e.message, true); });
+  });
+  $("ddvoCopyControlBtn").addEventListener("click", function () {
+    act("ddvo_control_text").then(function (res) {
+      if (res.ok === false) throw new Error(res.msg || res.error);
+      if (!copyText(res.text || "")) throw new Error("Odložišča ni bilo mogoče nastaviti.");
+      toast(res.msg || "Kontrola DDV-O je v odložišču.");
+    }).catch(function (e) { toast(e.message, true); });
+  });
+  $("virmanCopyPaymentBtn").addEventListener("click", function () {
+    act("virman_payment_text", { konto62: $("konto62") ? $("konto62").value : "0" }).then(function (res) {
+      if (res.ok === false) throw new Error(res.msg || res.error);
+      if (!copyText(res.text || "")) throw new Error("Odložišča ni bilo mogoče nastaviti.");
+      toast(res.msg || "Znesek plačila je v odložišču.");
+    }).catch(function (e) { toast(e.message, true); });
+  });
+  $("konto62PasteBtn").addEventListener("click", function () {
+    var clip = clipboardText();
+    if (!clip) { toast("Odložišče je prazno.", true); return; }
+    act("parse_konto62_clipboard", { text: clip }).then(function (res) {
+      if (res.ok === false) throw new Error(res.msg || res.error);
+      if ($("konto62")) $("konto62").value = res.value || "";
+      refreshVirmanQuote().catch(function () {});
+      toast(res.msg || "Konto 62 je prilepljen.");
     }).catch(function (e) { toast(e.message, true); });
   });
   $("editorClose").addEventListener("click", closeEditor);
@@ -930,7 +989,7 @@
     proceed.then(function () {
       return act("save_working_copy").then(function (s) {
         if (s && s.ok === false) throw new Error(s.msg || s.error);
-        if (s) applyState(s);
+        if (s) { applyState(s); copySavedPath(s); }
       });
     }).catch(function (e) { toast(e.message, true); });
   });
@@ -1030,7 +1089,7 @@
       if (name === "open") pickFile().then(openSource);
       else if (name === "last") runAction("open_last_source", {}).then(function (s) { if (s) { applyState(s); reloadView(); } }).catch(function (e) { toast(e.message, true); });
       else if (name === "save-accounts") runAction("save_accounts", {}).then(function (s) { if (s) applyState(s); }).catch(function (e) { toast(e.message, true); });
-      else if (name === "save-working") act("save_working_copy").then(function (s) { if (s.ok === false) throw new Error(s.msg || s.error); applyState(s); }).catch(function (e) { toast(e.message, true); });
+      else if (name === "save-working") act("save_working_copy").then(function (s) { if (s.ok === false) throw new Error(s.msg || s.error); applyState(s); copySavedPath(s); }).catch(function (e) { toast(e.message, true); });
       else if (name === "knjige") setView("knjige");
       else if (name === "api") setView("api");
       else if (name === "settings") setView("settings");

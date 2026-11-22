@@ -274,6 +274,53 @@ class WebviewServiceTests(unittest.TestCase):
         saved = json.loads(self.config_path.read_text(encoding="utf-8"))
         self.assertEqual("", saved.get("last_source_file") or "")
 
+    def test_ddvo_control_and_payment_text(self) -> None:
+        self.svc.load_source(str(self.sample))
+        ctrl = self.svc.ddvo_control_text()
+        self.assertTrue(ctrl["ok"])
+        self.assertIn("DDV-O", ctrl["text"])
+        self.assertIn("kontrolna razlika", ctrl["text"])
+        pay = self.svc.virman_payment_text("0")
+        self.assertTrue(pay["ok"])
+        self.assertTrue(pay["text"])
+
+    def test_parse_konto62_clipboard_reads_saldo(self) -> None:
+        parsed = self.svc.parse_konto62_clipboard("123,45")
+        self.assertTrue(parsed["ok"])
+        self.assertIn("123,45", parsed["value"])
+
+    def test_save_working_copy_includes_saved_path_in_temp(self) -> None:
+        self.svc.load_source(str(self.sample))
+        target = self.base / "kopija.json"
+        state = self.svc.save_working_copy_action(str(target))
+        self.assertTrue(target.is_file())
+        self.assertEqual(str(target), state["saved_path"])
+
+    def test_export_ddvo_report_includes_saved_path_in_temp(self) -> None:
+        self.svc.load_source(str(self.sample))
+        out = self.base / "izvoz"
+        out.mkdir()
+        state = self.svc.export_ddvo("report", out_dir=str(out))
+        self.assertTrue(state.get("saved_path"))
+        self.assertTrue(Path(state["saved_path"]).is_file())
+        self.assertEqual(out, Path(state["saved_path"]).parent)
+
+    def test_bridge_copy_text_roundtrip(self) -> None:
+        from host_webview import Bridge
+        previous = None
+        try:
+            previous = Bridge.get_text()
+        except Exception:
+            previous = None
+        token = "KIRKPR-CLIP-" + str(self.base)
+        try:
+            if not Bridge.copy_text(token):
+                self.skipTest("Odlozisce ni na voljo v tem okolju.")
+            self.assertEqual(token, Bridge.get_text())
+        finally:
+            if previous is not None:
+                Bridge.copy_text(previous)
+
     def test_path_settings_write_only_given_config(self) -> None:
         before = self.config_path.read_text(encoding="utf-8")
         self.svc.save_path_settings(

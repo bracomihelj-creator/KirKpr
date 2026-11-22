@@ -154,6 +154,104 @@ class Bridge:
         except Exception:
             pass
 
+    @staticmethod
+    def copy_text(text: str) -> bool:
+        """Kopira besedilo v odložišče prek Win32 ali Tk."""
+        value = str(text or "")
+        if Bridge._copy_win32(value):
+            return True
+        return Bridge._copy_tk(value)
+
+    @staticmethod
+    def get_text() -> str:
+        text = Bridge._get_win32()
+        if text is not None:
+            return text
+        return Bridge._get_tk()
+
+    @staticmethod
+    def _copy_win32(value: str) -> bool:
+        try:
+            import win32clipboard
+            import win32con
+        except Exception:
+            return False
+        try:
+            win32clipboard.OpenClipboard()
+            try:
+                win32clipboard.EmptyClipboard()
+                win32clipboard.SetClipboardData(win32con.CF_UNICODETEXT, value)
+            finally:
+                win32clipboard.CloseClipboard()
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def _get_win32() -> str | None:
+        try:
+            import win32clipboard
+            import win32con
+        except Exception:
+            return None
+        try:
+            win32clipboard.OpenClipboard()
+            try:
+                if win32clipboard.IsClipboardFormatAvailable(win32con.CF_UNICODETEXT):
+                    data = win32clipboard.GetClipboardData(win32con.CF_UNICODETEXT)
+                    return "" if data is None else str(data)
+                return ""
+            finally:
+                win32clipboard.CloseClipboard()
+        except Exception:
+            return None
+
+    @staticmethod
+    def _copy_tk(value: str) -> bool:
+        try:
+            import tkinter as tk
+        except Exception:
+            return False
+        root = None
+        try:
+            root = tk.Tk()
+            root.withdraw()
+            root.clipboard_clear()
+            root.clipboard_append(value)
+            root.update_idletasks()
+            return True
+        except Exception:
+            return False
+        finally:
+            if root is not None:
+                try:
+                    root.destroy()
+                except Exception:
+                    pass
+
+    @staticmethod
+    def _get_tk() -> str:
+        try:
+            import tkinter as tk
+        except Exception:
+            return ""
+        root = None
+        try:
+            root = tk.Tk()
+            root.withdraw()
+            try:
+                return str(root.clipboard_get())
+            except tk.TclError:
+                return ""
+        except Exception:
+            return ""
+        finally:
+            if root is not None:
+                try:
+                    root.destroy()
+                except Exception:
+                    pass
+
 
 def _json(obj: Any) -> bytes:
     return json.dumps(obj, ensure_ascii=False, default=str).encode("utf-8")
@@ -449,6 +547,9 @@ def _actions(s: KirKprService) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
             persist_working=b.get("persist_working", True),
         ),
         "save_working_copy": lambda b: s.save_working_copy_action(str(b.get("path") or b.get("target") or "")),
+        "ddvo_control_text": lambda b: s.ddvo_control_text(),
+        "virman_payment_text": lambda b: s.virman_payment_text(b.get("konto62") or "0"),
+        "parse_konto62_clipboard": lambda b: s.parse_konto62_clipboard(str(b.get("text") or "")),
         "export_ddvo": lambda b: s.export_ddvo(
             str(b.get("kind") or "both"),
             target=str(b.get("path") or b.get("target") or ""),

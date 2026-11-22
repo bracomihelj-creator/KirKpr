@@ -1026,7 +1026,7 @@ class KirKprService:
             return state
         state["working_copy"] = str(saved)
         state["msg"] = f"Delovna kopija je shranjena: {saved}. Izvorna datoteka je nespremenjena."
-        return state
+        return self._with_saved_path(state, saved)
 
     def get_data_editor(self, row_id: str) -> dict[str, Any]:
         book, index, row = self._row_by_id(row_id)
@@ -1158,6 +1158,39 @@ class KirKprService:
         self.config["last_action_detail"] = detail
         self._persist_config()
 
+    def _with_saved_path(self, state: dict[str, Any], *candidates: Any) -> dict[str, Any]:
+        paths: list[str] = []
+        for raw in candidates:
+            if raw is None:
+                continue
+            if isinstance(raw, dict):
+                for key in ("virman", "pdf", "xml", "report", "zip", "working_copy"):
+                    value = raw.get(key)
+                    if value:
+                        text = str(value)
+                        if text not in paths:
+                            paths.append(text)
+                for value in raw.values():
+                    if isinstance(value, (str, Path)) and str(value).strip():
+                        text = str(value)
+                        if text not in paths:
+                            paths.append(text)
+                continue
+            if isinstance(raw, (list, tuple)):
+                for item in raw:
+                    if item:
+                        text = str(item)
+                        if text not in paths:
+                            paths.append(text)
+                continue
+            text = str(raw).strip()
+            if text and text not in paths:
+                paths.append(text)
+        if paths:
+            state["saved_path"] = paths[0]
+            state["saved_paths"] = paths
+        return state
+
     def export_ddvo(self, kind: str = "both", target: str = "", out_dir: str = "") -> dict[str, Any]:
         import kirkpr_ddvo_pdf as ddvo_pdf
         import kirkpr_ddvo_xml as ddvo_xml
@@ -1176,7 +1209,7 @@ class KirKprService:
             state = self._state()
             state["export_paths"] = dict(paths)
             state["msg"] = f"Kontrolni pregled DDV-O je shranjen: {path.name}"
-            return state
+            return self._with_saved_path(state, path, paths)
         if kind in {"pdf", "xml", "both", "pdf_xml", "export"}:
             pdf_path = Path(target) if (target and kind == "pdf") else folder / ddvo_pdf.default_ddvo_pdf_name(view)
             xml_path = Path(target) if (target and kind == "xml") else folder / ddvo_xml.default_ddvo_xml_name(view)
@@ -1195,7 +1228,7 @@ class KirKprService:
             state = self._state()
             state["export_paths"] = paths
             state["msg"] = f"DDV-O shranjen: {detail}"
-            return state
+            return self._with_saved_path(state, paths)
         raise core.KirkprError("Neznana vrsta izvoza DDV-O.")
 
     def preview_ddvo(self, open_file: bool = False) -> dict[str, Any]:
@@ -1215,6 +1248,54 @@ class KirKprService:
         state["export_paths"] = {"pdf": str(target), "html": str(html_path)}
         state["msg"] = f"Predogled DDV-O: {target.name}"
         return state
+
+    def ddvo_control_text(self) -> dict[str, Any]:
+        view = self._ddvo_view_or_error()
+        summary = core.ddvo_summary(view)
+        text = (
+            f"DDV-O {view.period_from}–{view.period_to}: "
+            f"obračunani DDV {summary['output_vat']:.0f} EUR; "
+            f"odbitni DDV {summary['input_vat']:.0f} EUR; "
+            f"51 obveznost {summary['obligation']:.0f} EUR; "
+            f"52 presežek {summary['excess']:.0f} EUR; "
+            f"kontrolna razlika {summary['control_difference']:.0f} EUR."
+        )
+        return {"ok": True, "text": text, "msg": "Kontrolni podatek DDV-O je pripravljen za odložišče."}
+
+    def virman_payment_text(self, konto62: Any = "0") -> dict[str, Any]:
+        quoted = self.virman_quote(konto62)
+        if quoted.get("ok") is False:
+            return quoted
+        return {
+            "ok": True,
+            "text": str(quoted.get("payment") or ""),
+            "payment": quoted.get("payment") or "",
+            "msg": "Znesek plačila je pripravljen za odložišče.",
+        }
+
+    def parse_konto62_clipboard(self, text: str) -> dict[str, Any]:
+        import kirkpr_edavki_konto62 as edavki62
+
+        clip = str(text or "")
+        tax = ""
+        if self.selected_company:
+            tax = registry.company_tax_number(self.selected_company)
+        found = edavki62.lookup_from_clipboard(clip, tax_number=tax)
+        if found is None:
+            try:
+                found = edavki62.Konto62Lookup(
+                    credit=core.edavki_konto62_saldo(clip),
+                    source="odložišče",
+                )
+            except core.KirkprError as exc:
+                return {"ok": False, "error": str(exc), "msg": str(exc)}
+        return {
+            "ok": True,
+            "value": gui_helpers.format_money(found.credit),
+            "credit": found.credit,
+            "source": found.source,
+            "msg": f"Konto 62 = {gui_helpers.format_money(found.credit)} ({found.source}).",
+        }
 
     def virman_quote(self, konto62: Any = "0") -> dict[str, Any]:
         view = self._ddvo_view_or_error()
@@ -1264,7 +1345,7 @@ class KirKprService:
                 f"DDV-O PDF in XML sta shranjena. "
                 f"Obveznost (51) je 0 — virman ni potreben."
             )
-            return state
+            return self._with_saved_path(state, paths)
         exec_dt = gui_helpers.parse_iso_date(execution_date)
         paths_obj = None
         try:
@@ -1315,7 +1396,7 @@ class KirKprService:
             f"PDF: {package.pdf_path.name}; virman: {package.virman_path.name}; "
             f"plačilo {gui_helpers.format_money(package.payment)} EUR. E-pošta ni bila odprta."
         )
-        return state
+        return self._with_saved_path(state, package.virman_path, paths)
 
     def open_export_path(self, path: str) -> dict[str, Any]:
         target = Path(path)
@@ -2550,6 +2631,7 @@ class KirKprService:
         payload["failed"] = failed
         if summary_path:
             payload["summary_path"] = str(summary_path)
+            self._with_saved_path(payload, summary_path)
         return payload
 
     def retry_failed_api_rows(self) -> dict[str, Any]:
@@ -2659,7 +2741,7 @@ class KirKprService:
         state["msg"] = self.api_status_message
         state["files"] = [str(path) for path in written]
         state["out_dir"] = str(target_dir)
-        return state
+        return self._with_saved_path(state, state["files"], target_dir)
 
     def _sent_invoice_id(self, book: str, row: Mapping[str, Any]) -> str:
         sent = self._sent_info_for(book, row) or {}
@@ -2714,7 +2796,7 @@ class KirKprService:
         state["msg"] = self.api_status_message + f"\n{destination}"
         state["files"] = [str(path) for path in copied]
         state["out_dir"] = str(destination)
-        return state
+        return self._with_saved_path(state, state["files"], destination)
 
     def download_supplier_issued_attachment(self, row_id: str, out_dir: str = "") -> dict[str, Any]:
         self._require_api()
@@ -2775,7 +2857,7 @@ class KirKprService:
         state["msg"] = self.api_status_message + "\n" + str(target_dir)
         state["files"] = [str(path) for path in written]
         state["out_dir"] = str(target_dir)
-        return state
+        return self._with_saved_path(state, state["files"], target_dir)
 
 
     def _email_base_dir(self) -> Path:
