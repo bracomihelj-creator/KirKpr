@@ -349,6 +349,21 @@ class WebviewServiceTests(unittest.TestCase):
         self.assertEqual(str(out), saved.get("last_output_dir"))
         self.assertEqual(str(out), state["paths"]["last_export_dir"])
 
+    def test_export_minimax_writes_xml_zip_in_temp_and_sets_saved_path(self) -> None:
+        self.svc.load_source(str(self.sample))
+        out = self.base / "minimax_out"
+        out.mkdir()
+        state = self.svc.export_minimax(str(out))
+        archive = Path(state["saved_path"])
+        self.assertTrue(archive.is_file())
+        self.assertEqual(".zip", archive.suffix.lower())
+        self.assertTrue(archive.parent.is_dir())
+        self.assertTrue(Path(state["export_paths"]["issued_xml"]).is_file())
+        self.assertTrue(Path(state["export_paths"]["received_xml"]).is_file())
+        self.assertEqual(archive.parent, self.svc.last_output_folder())
+        # must stay inside the temp folder
+        self.assertEqual(out, archive.parent.parent)
+
     def test_path_settings_write_only_given_config(self) -> None:
         before = self.config_path.read_text(encoding="utf-8")
         self.svc.save_path_settings(

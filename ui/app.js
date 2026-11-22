@@ -1095,6 +1095,18 @@
       else if (name === "last") runAction("open_last_source", {}).then(function (s) { if (s) { applyState(s); reloadView(); } }).catch(function (e) { toast(e.message, true); });
       else if (name === "save-accounts") runAction("save_accounts", {}).then(function (s) { if (s) applyState(s); }).catch(function (e) { toast(e.message, true); });
       else if (name === "save-working") act("save_working_copy").then(function (s) { if (s.ok === false) throw new Error(s.msg || s.error); applyState(s); copySavedPath(s); }).catch(function (e) { toast(e.message, true); });
+      else if (name === "export-minimax") {
+        var runExport = function (dir) {
+          return runAction("export_minimax", { out_dir: dir || "" }, true).then(function (s) {
+            if (s) applyState(s);
+          });
+        };
+        if (state.boot && state.boot.company) runExport("").catch(function (e) { toast(e.message, true); });
+        else pickFolder("save").then(function (dir) {
+          if (!dir) return;
+          return runExport(dir);
+        }).catch(function (e) { toast(e.message, true); });
+      }
       else if (name === "knjige") setView("knjige");
       else if (name === "api") setView("api");
       else if (name === "settings") setView("settings");

@@ -1180,6 +1180,53 @@ class KirKprService:
             raise core.KirkprError("Ni shranjene izhodne mape.")
         return self.open_export_path(str(folder))
 
+    def export_minimax(self, out_dir: str = "") -> dict[str, Any]:
+        """Izvoz Minimax XML/ZIP prek core.export_minimax. Ne pošilja ničesar."""
+        if self.dataset is None:
+            raise core.KirkprError("Najprej odprite KIR/KPR datoteko.")
+        view = self._ddvo_view_dataset() or self.dataset
+        if out_dir:
+            start, end = self._filter_iso_bounds()
+            token = f"{start}_{end}" if start and end else (start or end or "brez-datuma")
+            destination = Path(out_dir) / f"Minimax_XML_{token}"
+        else:
+            paths = self._company_paths()
+            if paths is None:
+                raise core.KirkprError("Izberite podjetje ali mapo za Minimax XML in ZIP.")
+            destination = paths.exports
+        self.save_accounts()
+        result = core.export_minimax(view, destination)
+        self._remember_output_dir(
+            destination,
+            "export",
+            f"{result.issued_count} IR / {result.received_count} PR; {result.archive.name}",
+        )
+        self.config["last_export_archive"] = str(result.archive)
+        self._profile_config()["last_export_archive"] = str(result.archive)
+        self._persist_config()
+        state = self._state()
+        export_paths = {
+            "issued_xml": str(result.issued_xml),
+            "received_xml": str(result.received_xml),
+            "report": str(result.report),
+            "zip": str(result.archive),
+            "archive": str(result.archive),
+        }
+        state["export_paths"] = export_paths
+        state["export"] = {
+            "issued_count": result.issued_count,
+            "received_count": result.received_count,
+            "tax_only_kir_count": result.tax_only_kir_count,
+            "xsd_validated": result.xsd_validated,
+            "archive": str(result.archive),
+        }
+        validation = "XSD preverjanje uspešno" if result.xsd_validated else "XML ustvarjen; XSD ni bila najdena"
+        state["msg"] = (
+            f"Minimax XML/ZIP: {result.archive.name} "
+            f"({result.issued_count} IR / {result.received_count} PR). {validation}."
+        )
+        return self._with_saved_path(state, result.archive, export_paths)
+
     def _with_saved_path(self, state: dict[str, Any], *candidates: Any) -> dict[str, Any]:
         paths: list[str] = []
         for raw in candidates:
