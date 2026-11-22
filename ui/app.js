@@ -1,4 +1,4 @@
-/* KirKpr 5.0.09 — vmesnik WebView2 po zgledu Trops Studio 5 (klici HTTP API / pywebview Bridge). */
+/* KirKpr 5.0.10 — vmesnik WebView2 po zgledu Trops Studio 5 (klici HTTP API / pywebview Bridge). */
 (function () {
   var state = { view: "ir", boot: null, companies: [], selected: {}, editor: null, dataEditor: null, dataField: "", lastExportDir: "", lastExportPath: "", knjigaBook: "IR", knjigaMode: "json", apiFilter: "ALL", selectedSessionId: "" };
   var titles = {
@@ -94,7 +94,7 @@
       return;
     }
     state.boot = s;
-    $("brandVer").textContent = s.version || "5.0.09";
+    $("brandVer").textContent = s.version || "5.0.10";
     applyThemeLook(s.theme, s.look);
     if ($("autoReopenChk")) $("autoReopenChk").checked = !!s.auto_reopen;
     if (s.sessions) renderSessions(s.sessions, s.selected_session_id);

@@ -22,7 +22,7 @@ import minimax_api_client as minimax_api
 import kirkpr_minimax_core as core
 import convert_KIrKpr_to_minimax as gui_helpers
 
-APP_VERSION = "5.0.09"
+APP_VERSION = "5.0.10"
 APP_TITLE = "KIR/KPR \u2192 Minimax Studio"
 APP_EDITION = "WebView2"
 

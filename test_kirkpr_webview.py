@@ -97,11 +97,11 @@ class WebviewServiceTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def test_version_is_5_0_09(self) -> None:
-        self.assertEqual("5.0.09", APP_VERSION)
+    def test_version_is_5_0_10(self) -> None:
+        self.assertEqual("5.0.10", APP_VERSION)
         boot = self.svc.boot()
         self.assertTrue(boot["ok"])
-        self.assertEqual("5.0.09", boot["version"])
+        self.assertEqual("5.0.10", boot["version"])
         self.assertFalse(boot["has_data"])
 
     def test_theme_and_look_defaults_and_persist_in_temp_config(self) -> None:
@@ -860,7 +860,7 @@ class HostHttpTests(unittest.TestCase):
     def test_boot_and_load_source_via_http(self) -> None:
         code, body = self._open("/api/boot")
         self.assertEqual(200, code)
-        self.assertEqual("5.0.09", body["version"])
+        self.assertEqual("5.0.10", body["version"])
         code, body = self._open("/api/action", {"name": "load_source", "path": str(self.sample), "sync": True})
         self.assertEqual(200, code)
         self.assertTrue(body.get("has_data"))
